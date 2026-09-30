@@ -720,7 +720,7 @@ async function saveSchedule({ schedule = null, date, territoryIds }) {
   const payload = {
     congregacaoId: state.congregationId,
     data: date,
-    territorioIds,
+    territorioIds: territoryIds,
     territorios: territories,
     programadoPor: email,
     programadoEm: serverTimestamp(),
