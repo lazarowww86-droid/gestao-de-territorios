@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#6750a4">
+    <meta name="description" content="Gestão compartilhada de territórios da congregação.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Territórios">
+    <title>Gestão de Territórios</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/png" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <noscript>Ative o JavaScript para usar o Gestão de Territórios.</noscript>
+    <div id="network-banner" class="network-banner" role="status" hidden>Sem internet — as alterações serão sincronizadas quando a conexão voltar.</div>
+    <main id="app" class="app-root" aria-live="polite">
+      <section class="loading-screen" aria-label="Carregando">
+        <span class="spinner" aria-hidden="true"></span>
+      </section>
+    </main>
+    <div id="modal-root"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
