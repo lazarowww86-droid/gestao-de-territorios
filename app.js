@@ -10,6 +10,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -59,8 +60,11 @@ const state = {
   congregationId: null,
   congregation: null,
   territories: [],
+  schedules: [],
+  activeMainTab: "territories",
   activeCongregationTab: "create",
   stopTerritories: null,
+  stopSchedules: null,
   installPrompt: null,
   toastTimer: null,
   webMcpLifecycle: null
@@ -142,6 +146,8 @@ window.addEventListener("appinstalled", () => {
 function renderLogin(error = "") {
   state.stopTerritories?.();
   state.stopTerritories = null;
+  state.stopSchedules?.();
+  state.stopSchedules = null;
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Login</h1></header>
@@ -373,6 +379,7 @@ async function loadTerritoriesPage() {
     const congregationDoc = await getDoc(doc(db, "congregacoes", state.congregationId));
     state.congregation = congregationDoc.exists() ? congregationDoc.data() : {};
     subscribeTerritories();
+    subscribeSchedules();
   } catch (error) {
     renderRecoverableError("Não foi possível carregar a congregação.", loadTerritoriesPage, error);
   }
@@ -387,10 +394,26 @@ function subscribeTerritories() {
   );
   state.stopTerritories = onSnapshot(territoriesQuery, (snapshot) => {
     state.territories = snapshot.docs.map((item) => ({ id: item.id, ref: item.ref, data: item.data() }));
-    renderTerritories();
+    renderMainView();
     registerWebMcpTools();
   }, (error) => {
     renderRecoverableError("Não foi possível carregar os territórios.", subscribeTerritories, error);
+  });
+}
+
+function subscribeSchedules() {
+  state.stopSchedules?.();
+  const schedulesQuery = query(
+    collection(db, "programacoes"),
+    where("congregacaoId", "==", state.congregationId)
+  );
+  state.stopSchedules = onSnapshot(schedulesQuery, (snapshot) => {
+    state.schedules = snapshot.docs
+      .map((item) => ({ id: item.id, ref: item.ref, data: item.data() }))
+      .sort((a, b) => String(a.data.data || "").localeCompare(String(b.data.data || "")));
+    renderMainView();
+  }, (error) => {
+    showToast(firebaseError(error, "Não foi possível carregar a programação."));
   });
 }
 
@@ -402,6 +425,91 @@ function formatTimestamp(value) {
   return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()} ${two(date.getHours())}:${two(date.getMinutes())}`;
 }
 
+function todayDateKey() {
+  const now = new Date();
+  const two = (number) => String(number).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
+function formatScheduleDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return String(value || "-");
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  const formatted = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  }).format(date);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function upcomingSchedules() {
+  const today = todayDateKey();
+  return state.schedules.filter((schedule) => String(schedule.data.data || "") >= today);
+}
+
+function renderMainTabs(active) {
+  return `
+    <nav class="tabs main-tabs" aria-label="Áreas do aplicativo">
+      <button class="tab main-tab" type="button" data-main-tab="territories" aria-selected="${active === "territories"}">Territórios</button>
+      <button class="tab main-tab" type="button" data-main-tab="schedules" aria-selected="${active === "schedules"}">Programação</button>
+    </nav>`;
+}
+
+function bindMainTabs() {
+  document.querySelectorAll("[data-main-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeMainTab = button.dataset.mainTab;
+      renderMainView();
+    });
+  });
+}
+
+function renderMainView() {
+  if (state.activeMainTab === "schedules") {
+    renderSchedules();
+    return;
+  }
+  renderTerritories();
+}
+
+function scheduleTerritories(schedule) {
+  const savedTerritories = Array.isArray(schedule.data.territorios) ? schedule.data.territorios : [];
+  const ids = Array.isArray(schedule.data.territorioIds) ? schedule.data.territorioIds : [];
+  return ids.map((id) => {
+    const current = findTerritory(id);
+    const saved = savedTerritories.find((territory) => territory?.id === id) || {};
+    return {
+      id,
+      name: current?.data?.nome?.toString() || saved.nome?.toString() || "Território",
+      mapsUrl: current?.data?.mapsUrl?.toString() || saved.mapsUrl?.toString() || ""
+    };
+  });
+}
+
+function nextScheduleBanner() {
+  const next = upcomingSchedules()[0];
+  if (!next) return "";
+  const territories = scheduleTerritories(next);
+  const isToday = next.data.data === todayDateKey();
+  return `
+    <section class="next-schedule ${isToday ? "today" : ""}" aria-label="Próxima programação">
+      <div class="next-schedule__heading">
+        <div>
+          <p class="eyebrow">${isToday ? "PROGRAMAÇÃO DE HOJE" : "PRÓXIMA PROGRAMAÇÃO"}</p>
+          <h2>${escapeHtml(formatScheduleDate(next.data.data))}</h2>
+        </div>
+        ${isToday ? `<span class="today-pill">HOJE</span>` : ""}
+      </div>
+      <div class="scheduled-territory-chips">
+        ${territories.map((territory) => `<span>${escapeHtml(territory.name)}</span>`).join("")}
+      </div>
+      <div class="schedule-audit">Programado por: ${escapeHtml(next.data.programadoPor || "-")}</div>
+      <button id="view-schedules" class="btn btn-outlined" type="button">Ver programação</button>
+    </section>`;
+}
+
 function renderTerritories() {
   const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
   const congregationCode = state.congregation?.codigo?.toString().trim() || "";
@@ -410,6 +518,7 @@ function renderTerritories() {
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Territórios</h1></header>
+      ${renderMainTabs("territories")}
       <div class="content">
         ${congregationCode ? `
           <section class="congregation-card" aria-label="Código da congregação">
@@ -420,6 +529,7 @@ function renderTerritories() {
             </div>
             <button id="copy-code" class="btn btn-tonal" type="button" aria-label="Copiar código">▣ Copiar</button>
           </section>` : ""}
+        ${nextScheduleBanner()}
         <section id="territory-list" class="territory-list" aria-label="Lista de territórios">
           ${state.territories.length ? cards : `<div class="empty-state"><p>Nenhum território cadastrado</p></div>`}
         </section>
@@ -428,12 +538,215 @@ function renderTerritories() {
     </section>`;
 
   document.querySelector("#copy-code")?.addEventListener("click", copyCongregationCode);
+  document.querySelector("#view-schedules")?.addEventListener("click", () => {
+    state.activeMainTab = "schedules";
+    renderMainView();
+  });
   document.querySelector("#add-territory").addEventListener("click", () => openTerritoryDialog());
+  bindMainTabs();
   document.querySelectorAll("[data-open-maps]").forEach((button) => {
     button.addEventListener("click", () => openMaps(button.dataset.openMaps));
   });
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleTerritoryAction(button.dataset.action, button.dataset.id));
+  });
+}
+
+function renderSchedules() {
+  const today = todayDateKey();
+  const upcoming = state.schedules.filter((schedule) => String(schedule.data.data || "") >= today);
+  const previous = state.schedules
+    .filter((schedule) => String(schedule.data.data || "") < today)
+    .sort((a, b) => String(b.data.data || "").localeCompare(String(a.data.data || "")));
+
+  appElement.innerHTML = `
+    <section class="page-shell">
+      <header class="top-app-bar"><h1>Programação</h1></header>
+      ${renderMainTabs("schedules")}
+      <div class="content schedule-content">
+        <section class="schedule-section" aria-labelledby="upcoming-schedules-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">SERVIÇO DE CAMPO</p>
+              <h2 id="upcoming-schedules-title">Territórios programados</h2>
+            </div>
+          </div>
+          <div class="schedule-list">
+            ${upcoming.length
+              ? upcoming.map((schedule) => scheduleCard(schedule)).join("")
+              : `<div class="schedule-empty"><p>Nenhum território programado.</p><p>Quando houver uma programação, todos da congregação verão aqui.</p></div>`}
+          </div>
+        </section>
+        ${previous.length ? `
+          <details class="previous-schedules">
+            <summary>Programações anteriores (${previous.length})</summary>
+            <div class="schedule-list">
+              ${previous.map((schedule) => scheduleCard(schedule, true)).join("")}
+            </div>
+          </details>` : ""}
+      </div>
+      <button id="add-schedule" class="fab" type="button" aria-label="Programar territórios" title="Programar territórios">＋</button>
+    </section>`;
+
+  bindMainTabs();
+  document.querySelector("#add-schedule").addEventListener("click", () => {
+    if (!state.territories.length) {
+      showToast("Cadastre pelo menos um território antes de programar.");
+      return;
+    }
+    requestSchedulePermission(() => openScheduleDialog());
+  });
+  document.querySelectorAll("[data-schedule-action]").forEach((button) => {
+    button.addEventListener("click", () => handleScheduleAction(button.dataset.scheduleAction, button.dataset.id));
+  });
+  document.querySelectorAll("[data-open-maps]").forEach((button) => {
+    button.addEventListener("click", () => openMaps(button.dataset.openMaps));
+  });
+}
+
+function scheduleCard(schedule, previous = false) {
+  const territories = scheduleTerritories(schedule);
+  const isToday = schedule.data.data === todayDateKey();
+  const programmedBy = schedule.data.programadoPor?.toString() || "-";
+  return `
+    <article class="schedule-card ${isToday ? "today" : ""} ${previous ? "previous" : ""}">
+      <div class="schedule-card__header">
+        <div>
+          <div class="schedule-date-row">
+            <h3>${escapeHtml(formatScheduleDate(schedule.data.data))}</h3>
+            ${isToday ? `<span class="today-pill">HOJE</span>` : ""}
+          </div>
+          <p>${territories.length} ${territories.length === 1 ? "território" : "territórios"}</p>
+        </div>
+        <details class="menu">
+          <summary class="icon-btn" aria-label="Mais opções">⋮</summary>
+          <div class="menu-panel">
+            <button type="button" data-schedule-action="edit" data-id="${escapeHtml(schedule.id)}">Editar programação</button>
+            <button type="button" data-schedule-action="remove" data-id="${escapeHtml(schedule.id)}">Excluir programação</button>
+          </div>
+        </details>
+      </div>
+      <div class="scheduled-territories">
+        ${territories.map((territory) => `
+          <div class="scheduled-territory">
+            <span>${escapeHtml(territory.name)}</span>
+            ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps">⌖</button>` : ""}
+          </div>`).join("")}
+      </div>
+      <div class="schedule-audit">Programado por: ${escapeHtml(programmedBy)} • ${escapeHtml(formatTimestamp(schedule.data.programadoEm))}</div>
+    </article>`;
+}
+
+function findSchedule(id) {
+  return state.schedules.find((schedule) => schedule.id === id);
+}
+
+function handleScheduleAction(action, id) {
+  const schedule = findSchedule(id);
+  if (!schedule) return;
+  document.querySelectorAll("details.menu[open]").forEach((menu) => menu.removeAttribute("open"));
+  if (action === "edit") requestSchedulePermission(() => openScheduleDialog(schedule));
+  if (action === "remove") requestSchedulePermission(() => openRemoveScheduleDialog(schedule));
+}
+
+function requestSchedulePermission(onConfirmed) {
+  let controls;
+  controls = openDialog({
+    title: "Programar territórios",
+    help: "Você foi designado para essa função?",
+    fields: "",
+    cancelLabel: "Não",
+    confirmLabel: "Sim",
+    onSubmit: async () => {
+      controls.close();
+      onConfirmed();
+    }
+  });
+}
+
+function openScheduleDialog(schedule = null) {
+  const selected = new Set(Array.isArray(schedule?.data?.territorioIds) ? schedule.data.territorioIds : []);
+  const date = schedule?.data?.data || todayDateKey();
+  let controls;
+  controls = openDialog({
+    title: schedule ? "Editar programação" : "Nova programação",
+    help: "Escolha a data e os territórios que serão trabalhados.",
+    fields: `
+      <div class="field">
+        <label for="schedule-date">Data</label>
+        <input id="schedule-date" name="date" type="date" value="${escapeHtml(date)}" required>
+      </div>
+      <fieldset class="territory-picker">
+        <legend>Territórios</legend>
+        <div class="territory-choice-list">
+          ${state.territories.map((territory) => `
+            <label class="territory-choice">
+              <input type="checkbox" name="territoryIds" value="${escapeHtml(territory.id)}" ${selected.has(territory.id) ? "checked" : ""}>
+              <span>
+                <strong>${escapeHtml(territory.data.nome || "Território")}</strong>
+                <small>${territory.data.finalizado === true ? "Finalizado" : territory.data.parcial === true ? "Parcial" : "Em andamento"}</small>
+              </span>
+            </label>`).join("")}
+        </div>
+      </fieldset>`,
+    confirmLabel: "Salvar programação",
+    onSubmit: async (formData, setError) => {
+      const selectedDate = String(formData.get("date") || "").trim();
+      const territoryIds = formData.getAll("territoryIds").map(String);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return setError("Escolha uma data válida.");
+      if (!territoryIds.length) return setError("Escolha pelo menos um território.");
+      await saveSchedule({ schedule, date: selectedDate, territoryIds });
+      controls.close();
+      showToast("Programação salva e compartilhada com a congregação.");
+    }
+  });
+}
+
+async function saveSchedule({ schedule = null, date, territoryIds }) {
+  if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
+  const email = state.user.email || "sem_email";
+  const targetId = `${state.congregationId}_${date}`;
+  const targetRef = doc(db, "programacoes", targetId);
+  const existingTarget = findSchedule(targetId);
+  const original = schedule?.data || existingTarget?.data || {};
+  const territories = territoryIds.map((id) => {
+    const territory = findTerritory(id);
+    return {
+      id,
+      nome: territory?.data?.nome?.toString() || "Território",
+      mapsUrl: territory?.data?.mapsUrl?.toString() || ""
+    };
+  });
+  const payload = {
+    congregacaoId: state.congregationId,
+    data: date,
+    territorioIds,
+    territorios: territories,
+    programadoPor: email,
+    programadoEm: serverTimestamp(),
+    ultimaAtualizacaoPor: email,
+    ultimaAtualizacaoEm: serverTimestamp(),
+    criadoPor: original.criadoPor || email,
+    criadoEm: original.criadoEm || serverTimestamp()
+  };
+  await setDoc(targetRef, payload, { merge: true });
+  if (schedule && schedule.id !== targetId) await deleteDoc(schedule.ref);
+}
+
+function openRemoveScheduleDialog(schedule) {
+  let controls;
+  controls = openDialog({
+    title: "Excluir programação",
+    help: `Excluir a programação de ${formatScheduleDate(schedule.data.data)}?`,
+    fields: "",
+    cancelLabel: "Cancelar",
+    confirmLabel: "Excluir",
+    danger: true,
+    onSubmit: async () => {
+      await deleteDoc(schedule.ref);
+      controls.close();
+      showToast("Programação excluída.");
+    }
   });
 }
 
@@ -535,7 +848,7 @@ function openMaps(url) {
   }
 }
 
-function openDialog({ title, help = "", fields = "", confirmLabel = "Salvar", danger = false, onSubmit }) {
+function openDialog({ title, help = "", fields = "", cancelLabel = "Cancelar", confirmLabel = "Salvar", danger = false, onSubmit }) {
   modalRoot.innerHTML = `
     <dialog class="app-dialog">
       <form class="dialog-form" novalidate>
@@ -544,7 +857,7 @@ function openDialog({ title, help = "", fields = "", confirmLabel = "Salvar", da
         ${fields}
         <div class="dialog-error error-box" hidden></div>
         <div class="dialog-actions">
-          <button class="btn cancel-dialog" type="button">Cancelar</button>
+          <button class="btn cancel-dialog" type="button">${escapeHtml(cancelLabel)}</button>
           <button class="btn ${danger ? "btn-danger" : "btn-filled"} confirm-dialog" type="submit">${escapeHtml(confirmLabel)}</button>
         </div>
       </form>
