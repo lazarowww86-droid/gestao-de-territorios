@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestao-territorios-v8-perfis-administrativos";
+const CACHE_NAME = "gestao-territorios-v9-compatibilidade-criador";
 const APP_SHELL = [
   "./",
   "./index.html",

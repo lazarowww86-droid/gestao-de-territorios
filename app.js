@@ -117,6 +117,12 @@ function isPrincipalAdministrator() {
   return state.userRole === USER_ROLES.PRINCIPAL_ADMIN;
 }
 
+function congregationCreatorUid(congregation = state.congregation) {
+  return congregation?.criadaPor?.toString()
+    || congregation?.criadaPorUid?.toString()
+    || "";
+}
+
 function showToast(message) {
   clearTimeout(state.toastTimer);
   toastElement.textContent = message;
@@ -481,7 +487,7 @@ function subscribeUserProfileAccess() {
       return;
     }
 
-    const creator = state.congregation?.criadaPor === state.user.uid;
+    const creator = congregationCreatorUid() === state.user.uid;
     const nextRole = creator ? USER_ROLES.PRINCIPAL_ADMIN : normalizeUserRole(profile.tipoUsuario);
     const nextCode = nextRole === USER_ROLES.USER
       ? ""
@@ -503,7 +509,7 @@ function subscribeUserProfileAccess() {
 
 async function loadUserAccess(congregationRef) {
   if (!state.user || !state.congregationId) return;
-  const creator = state.congregation?.criadaPor === state.user.uid;
+  const creator = congregationCreatorUid() === state.user.uid;
   const storedRole = normalizeUserRole(state.userProfile?.tipoUsuario);
   const role = creator ? USER_ROLES.PRINCIPAL_ADMIN : storedRole;
   const legacyCode = state.congregation?.codigo?.toString().trim().toUpperCase() || "";
@@ -534,6 +540,7 @@ async function loadUserAccess(congregationRef) {
       criadoEm: state.congregation.criadaEm || serverTimestamp()
     }, { merge: true });
     await updateDoc(congregationRef, {
+      criadaPor: state.user.uid,
       codigo: deleteField(),
       codigoMigradoEm: serverTimestamp(),
       codigoMigradoPor: state.user.email || "sem_email"
@@ -1274,7 +1281,7 @@ async function openUserManagementDialog() {
       ));
       members = snapshot.docs.map((item) => {
         const data = item.data();
-        const role = item.id === state.congregation?.criadaPor
+        const role = item.id === congregationCreatorUid()
           ? USER_ROLES.PRINCIPAL_ADMIN
           : normalizeUserRole(data.tipoUsuario);
         return { id: item.id, ref: item.ref, data, role };
