@@ -497,6 +497,13 @@ function formatScheduleDate(value) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
+function isWeekendScheduleDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const weekDay = new Date(year, month - 1, day, 12).getDay();
+  return weekDay === 0 || weekDay === 6;
+}
+
 function upcomingSchedules() {
   const today = todayDateKey();
   return state.schedules.filter((schedule) => String(schedule.data.data || "") >= today);
@@ -546,6 +553,9 @@ function nextScheduleBanner() {
   if (!next) return "";
   const territories = scheduleTerritories(next);
   const isToday = next.data.data === todayDateKey();
+  const departureLocation = isWeekendScheduleDate(next.data.data)
+    ? next.data.localSaida?.toString().trim() || ""
+    : "";
   return `
     <section class="next-schedule ${isToday ? "today" : ""}" aria-label="Próxima programação">
       <div class="next-schedule__heading">
@@ -558,6 +568,11 @@ function nextScheduleBanner() {
       <div class="scheduled-territory-chips">
         ${territories.map((territory) => `<span>${escapeHtml(territory.name)}</span>`).join("")}
       </div>
+      ${departureLocation ? `
+        <div class="departure-location">
+          <span class="departure-location__icon" aria-hidden="true">⌂</span>
+          <div><strong>Saída de campo</strong><p>${escapeHtml(departureLocation)}</p></div>
+        </div>` : ""}
       <div class="schedule-audit">Programado por: ${escapeHtml(next.data.programadoPor || "-")}</div>
       <button id="view-schedules" class="btn btn-outlined" type="button">Ver programação</button>
     </section>`;
@@ -689,6 +704,9 @@ function scheduleCard(schedule, previous = false) {
   const territories = scheduleTerritories(schedule);
   const isToday = schedule.data.data === todayDateKey();
   const programmedBy = schedule.data.programadoPor?.toString() || "-";
+  const departureLocation = isWeekendScheduleDate(schedule.data.data)
+    ? schedule.data.localSaida?.toString().trim() || ""
+    : "";
   return `
     <article class="schedule-card ${isToday ? "today" : ""} ${previous ? "previous" : ""}">
       <div class="schedule-card__header">
@@ -714,6 +732,11 @@ function scheduleCard(schedule, previous = false) {
             ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps">⌖</button>` : ""}
           </div>`).join("")}
       </div>
+      ${departureLocation ? `
+        <div class="departure-location compact">
+          <span class="departure-location__icon" aria-hidden="true">⌂</span>
+          <div><strong>Saída de campo</strong><p>${escapeHtml(departureLocation)}</p></div>
+        </div>` : ""}
       <div class="schedule-audit">Programado por: ${escapeHtml(programmedBy)} • ${escapeHtml(formatTimestamp(schedule.data.programadoEm))}</div>
     </article>`;
 }
@@ -748,6 +771,8 @@ function requestSchedulePermission(onConfirmed) {
 function openScheduleDialog(schedule = null) {
   const selected = new Set(Array.isArray(schedule?.data?.territorioIds) ? schedule.data.territorioIds : []);
   const date = schedule?.data?.data || todayDateKey();
+  const departureLocation = schedule?.data?.localSaida?.toString() || "";
+  const weekend = isWeekendScheduleDate(date);
   let controls;
   controls = openDialog({
     title: schedule ? "Editar programação" : "Nova programação",
@@ -756,6 +781,11 @@ function openScheduleDialog(schedule = null) {
       <div class="field">
         <label for="schedule-date">Data</label>
         <input id="schedule-date" name="date" type="date" value="${escapeHtml(date)}" required>
+      </div>
+      <div id="weekend-departure-field" class="field weekend-departure-field" ${weekend ? "" : "hidden"}>
+        <label for="departure-location">Local da saída de campo</label>
+        <input id="departure-location" name="departureLocation" maxlength="120" value="${escapeHtml(departureLocation)}" placeholder="Ex.: Casa do irmão José" ${weekend ? "required" : ""}>
+        <small class="field-help">Disponível somente para programações de sábado ou domingo.</small>
       </div>
       <fieldset class="territory-picker">
         <legend>Territórios</legend>
@@ -774,16 +804,37 @@ function openScheduleDialog(schedule = null) {
     onSubmit: async (formData, setError) => {
       const selectedDate = String(formData.get("date") || "").trim();
       const territoryIds = formData.getAll("territoryIds").map(String);
+      const selectedDepartureLocation = String(formData.get("departureLocation") || "").trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return setError("Escolha uma data válida.");
+      const selectedWeekend = isWeekendScheduleDate(selectedDate);
+      if (selectedWeekend && !selectedDepartureLocation) return setError("Informe de qual casa será a saída de campo.");
       if (!territoryIds.length) return setError("Escolha pelo menos um território.");
-      await saveSchedule({ schedule, date: selectedDate, territoryIds });
+      await saveSchedule({
+        schedule,
+        date: selectedDate,
+        territoryIds,
+        departureLocation: selectedWeekend ? selectedDepartureLocation : ""
+      });
       controls.close();
       showToast("Programação salva e compartilhada com a congregação.");
     }
   });
+
+  const dateInput = controls.dialog.querySelector("#schedule-date");
+  const departureField = controls.dialog.querySelector("#weekend-departure-field");
+  const departureInput = controls.dialog.querySelector("#departure-location");
+  const syncDepartureField = () => {
+    const showDeparture = isWeekendScheduleDate(dateInput.value);
+    departureField.hidden = !showDeparture;
+    departureInput.required = showDeparture;
+    if (!showDeparture) departureInput.value = "";
+  };
+  dateInput.addEventListener("change", syncDepartureField);
+  dateInput.addEventListener("input", syncDepartureField);
+  syncDepartureField();
 }
 
-async function saveSchedule({ schedule = null, date, territoryIds }) {
+async function saveSchedule({ schedule = null, date, territoryIds, departureLocation = "" }) {
   if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
   const email = state.user.email || "sem_email";
   const targetId = `${state.congregationId}_${date}`;
@@ -803,6 +854,7 @@ async function saveSchedule({ schedule = null, date, territoryIds }) {
     data: date,
     territorioIds: territoryIds,
     territorios: territories,
+    localSaida: isWeekendScheduleDate(date) ? departureLocation : null,
     programadoPor: email,
     programadoEm: serverTimestamp(),
     ultimaAtualizacaoPor: email,

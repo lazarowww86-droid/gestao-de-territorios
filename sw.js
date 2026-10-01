@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestao-territorios-v4-observacoes-avisos-tempo";
+const CACHE_NAME = "gestao-territorios-v5-saida-campo-fim-semana";
 const APP_SHELL = [
   "./",
   "./index.html",
