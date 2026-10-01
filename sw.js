@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestao-territorios-v9-compatibilidade-criador";
+const CACHE_NAME = "gestao-territorios-v10-redefinicao-senha";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -40,6 +41,7 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
+auth.languageCode = "pt-BR";
 let db;
 try {
   db = initializeFirestore(firebaseApp, {
@@ -197,16 +199,19 @@ function renderLogin(error = "") {
           <div class="field">
             <label for="email">E-mail</label>
             <input id="email" name="email" type="email" inputmode="email" autocomplete="email" required>
+            <p class="field-help">Use um e-mail verdadeiro e acessível para conseguir redefinir sua senha.</p>
           </div>
           <div class="field">
             <label for="password">Senha</label>
             <input id="password" name="password" type="password" autocomplete="current-password" required>
           </div>
           <div id="login-error" class="error-box" ${error ? "" : "hidden"}>${escapeHtml(error)}</div>
+          <div id="login-message" class="success-box" hidden></div>
           <div class="button-row">
             <button id="login-button" class="btn btn-filled" type="submit">Entrar</button>
             <button id="create-account-button" class="btn btn-outlined" type="button">Criar conta</button>
           </div>
+          <button id="forgot-password-button" class="btn password-reset-button" type="button">Esqueci minha senha</button>
         </form>
         <div class="install-area">${installButton()}</div>
       </div>
@@ -214,19 +219,68 @@ function renderLogin(error = "") {
 
   const form = document.querySelector("#login-form");
   const createButton = document.querySelector("#create-account-button");
+  const forgotPasswordButton = document.querySelector("#forgot-password-button");
   form.addEventListener("submit", (event) => authenticate(event, false));
   createButton.addEventListener("click", (event) => authenticate(event, true));
+  forgotPasswordButton.addEventListener("click", resetPassword);
   bindInstallButtons();
+}
+
+function passwordResetError(error) {
+  const code = error?.code ? String(error.code) : "";
+  if (code === "auth/invalid-email") return "Digite um e-mail válido.";
+  if (code === "auth/too-many-requests") return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
+  if (code === "auth/network-request-failed") return "Não foi possível conectar. Verifique sua internet e tente novamente.";
+  return "Não foi possível enviar o e-mail de redefinição. Tente novamente.";
+}
+
+async function resetPassword() {
+  const form = document.querySelector("#login-form");
+  const emailInput = form?.elements.email;
+  const email = emailInput?.value.trim() || "";
+  const errorElement = document.querySelector("#login-error");
+  const messageElement = document.querySelector("#login-message");
+  const button = document.querySelector("#forgot-password-button");
+
+  errorElement.hidden = true;
+  messageElement.hidden = true;
+
+  if (!email) {
+    errorElement.textContent = "Digite seu e-mail no campo acima para redefinir a senha.";
+    errorElement.hidden = false;
+    emailInput?.focus();
+    return;
+  }
+
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = spinnerLabel("Enviando...");
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    messageElement.textContent = "Se esse e-mail estiver cadastrado, você receberá um link para criar uma nova senha. Verifique também a caixa de spam.";
+    messageElement.hidden = false;
+  } catch (error) {
+    errorElement.textContent = passwordResetError(error);
+    errorElement.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.innerHTML = original;
+  }
 }
 
 async function authenticate(event, createAccount) {
   event.preventDefault();
   const form = document.querySelector("#login-form");
   const errorElement = document.querySelector("#login-error");
+  const messageElement = document.querySelector("#login-message");
   const loginButton = document.querySelector("#login-button");
   const createButton = document.querySelector("#create-account-button");
   const email = form.elements.email.value.trim();
   const password = form.elements.password.value.trim();
+
+  errorElement.hidden = true;
+  messageElement.hidden = true;
 
   if (!email || !password) {
     errorElement.textContent = "Preencha e-mail e senha.";
@@ -234,7 +288,6 @@ async function authenticate(event, createAccount) {
     return;
   }
 
-  errorElement.hidden = true;
   loginButton.disabled = true;
   createButton.disabled = true;
   const original = createAccount ? createButton.innerHTML : loginButton.innerHTML;

@@ -171,6 +171,23 @@ button { -webkit-tap-highlight-color: transparent; }
   font-size: 0.92rem;
 }
 
+.success-box {
+  margin: 0.3rem 0;
+  padding: 0.75rem 0.9rem;
+  color: #245d3d;
+  background: #e5f5ea;
+  border-radius: 0.6rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.password-reset-button {
+  align-self: center;
+  min-height: 2.25rem;
+  margin-top: 0.15rem;
+  padding-block: 0.35rem;
+}
+
 .helper-text { margin: 0.2rem 0 0; color: var(--muted); text-align: center; line-height: 1.5; }
 
 .install-area { display: flex; justify-content: center; margin-top: 1.35rem; }
