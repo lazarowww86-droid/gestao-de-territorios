@@ -61,10 +61,12 @@ const state = {
   congregation: null,
   territories: [],
   schedules: [],
+  notices: [],
   activeMainTab: "territories",
   activeCongregationTab: "create",
   stopTerritories: null,
   stopSchedules: null,
+  stopNotices: null,
   installPrompt: null,
   toastTimer: null,
   webMcpLifecycle: null
@@ -148,6 +150,8 @@ function renderLogin(error = "") {
   state.stopTerritories = null;
   state.stopSchedules?.();
   state.stopSchedules = null;
+  state.stopNotices?.();
+  state.stopNotices = null;
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Login</h1></header>
@@ -380,6 +384,7 @@ async function loadTerritoriesPage() {
     state.congregation = congregationDoc.exists() ? congregationDoc.data() : {};
     subscribeTerritories();
     subscribeSchedules();
+    subscribeNotices();
   } catch (error) {
     renderRecoverableError("Não foi possível carregar a congregação.", loadTerritoriesPage, error);
   }
@@ -417,12 +422,60 @@ function subscribeSchedules() {
   });
 }
 
+function timestampMilliseconds(value) {
+  if (!value) return 0;
+  const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function subscribeNotices() {
+  state.stopNotices?.();
+  const noticesQuery = query(
+    collection(db, "avisos"),
+    where("congregacaoId", "==", state.congregationId)
+  );
+  state.stopNotices = onSnapshot(noticesQuery, (snapshot) => {
+    state.notices = snapshot.docs
+      .map((item) => ({ id: item.id, ref: item.ref, data: item.data() }))
+      .sort((a, b) => timestampMilliseconds(b.data.publicadoEm) - timestampMilliseconds(a.data.publicadoEm));
+    renderMainView();
+  }, (error) => {
+    showToast(firebaseError(error, "Não foi possível carregar os avisos."));
+  });
+}
+
 function formatTimestamp(value) {
   if (!value) return "-";
   const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   const two = (number) => String(number).padStart(2, "0");
   return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()} ${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
+function daysSince(value) {
+  if (!value) return null;
+  const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const startDay = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.floor((today - startDay) / 86400000));
+}
+
+function territoryCompletionStatus(data) {
+  const lastCompletion = data.ultimaFinalizacaoEm || data.finalizadoEm;
+  const completedDays = daysSince(lastCompletion);
+  if (completedDays !== null) {
+    if (completedDays === 0) return "Última conclusão: hoje";
+    if (completedDays === 1) return "Última conclusão: há 1 dia";
+    return `Última conclusão: há ${completedDays} dias`;
+  }
+  if (data.reiniciadoEm) return "Última conclusão: histórico anterior indisponível";
+  const openDays = daysSince(data.criadoEm || data.iniciadoEm);
+  if (openDays === 0) return "Sem conclusão: iniciado hoje";
+  if (openDays === 1) return "Sem conclusão há 1 dia";
+  if (openDays !== null) return `Sem conclusão há ${openDays} dias`;
+  return "Sem registro de conclusão";
 }
 
 function todayDateKey() {
@@ -510,6 +563,29 @@ function nextScheduleBanner() {
     </section>`;
 }
 
+function noticesPanel() {
+  return `
+    <section class="notices-panel" aria-labelledby="notices-title">
+      <div class="notices-heading">
+        <div>
+          <p class="eyebrow">INFORMAÇÕES IMPORTANTES</p>
+          <h2 id="notices-title">Avisos da congregação</h2>
+        </div>
+        <button id="add-notice" class="btn btn-outlined" type="button">Novo aviso</button>
+      </div>
+      <div class="notice-list">
+        ${state.notices.length ? state.notices.map((notice) => `
+          <article class="notice-card">
+            <p>${escapeHtml(notice.data.texto || "")}</p>
+            <div class="notice-footer">
+              <span>Publicado por: ${escapeHtml(notice.data.publicadoPor || "-")} • ${escapeHtml(formatTimestamp(notice.data.publicadoEm))}</span>
+              <button class="notice-remove" type="button" data-notice-action="remove" data-id="${escapeHtml(notice.id)}">Excluir</button>
+            </div>
+          </article>`).join("") : `<p class="notice-empty">Nenhum aviso publicado.</p>`}
+      </div>
+    </section>`;
+}
+
 function renderTerritories() {
   const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
   const congregationCode = state.congregation?.codigo?.toString().trim() || "";
@@ -529,6 +605,7 @@ function renderTerritories() {
             </div>
             <button id="copy-code" class="btn btn-tonal" type="button" aria-label="Copiar código">▣ Copiar</button>
           </section>` : ""}
+        ${noticesPanel()}
         ${nextScheduleBanner()}
         <section id="territory-list" class="territory-list" aria-label="Lista de territórios">
           ${state.territories.length ? cards : `<div class="empty-state"><p>Nenhum território cadastrado</p></div>`}
@@ -541,6 +618,10 @@ function renderTerritories() {
   document.querySelector("#view-schedules")?.addEventListener("click", () => {
     state.activeMainTab = "schedules";
     renderMainView();
+  });
+  document.querySelector("#add-notice")?.addEventListener("click", () => requestNoticePermission(openNoticeDialog));
+  document.querySelectorAll("[data-notice-action]").forEach((button) => {
+    button.addEventListener("click", () => handleNoticeAction(button.dataset.noticeAction, button.dataset.id));
   });
   document.querySelector("#add-territory").addEventListener("click", () => openTerritoryDialog());
   bindMainTabs();
@@ -750,6 +831,80 @@ function openRemoveScheduleDialog(schedule) {
   });
 }
 
+function findNotice(id) {
+  return state.notices.find((notice) => notice.id === id);
+}
+
+function requestNoticePermission(onConfirmed) {
+  let controls;
+  controls = openDialog({
+    title: "Publicar aviso",
+    help: "Você foi designado pela comissão de serviço ou pelos anciãos para essa função?",
+    fields: "",
+    cancelLabel: "Não",
+    confirmLabel: "Sim",
+    onSubmit: async () => {
+      controls.close();
+      onConfirmed();
+    }
+  });
+}
+
+function openNoticeDialog() {
+  let controls;
+  controls = openDialog({
+    title: "Novo aviso",
+    help: "O aviso será compartilhado com todos os usuários desta congregação.",
+    fields: `
+      <div class="field">
+        <label for="notice-text">Aviso</label>
+        <textarea id="notice-text" name="text" rows="5" maxlength="600" required></textarea>
+        <small class="field-help">Máximo de 600 caracteres.</small>
+      </div>`,
+    confirmLabel: "Publicar aviso",
+    onSubmit: async (formData, setError) => {
+      const text = String(formData.get("text") || "").trim();
+      if (!text) return setError("Digite o aviso.");
+      await saveNotice(text);
+      controls.close();
+      showToast("Aviso publicado para a congregação.");
+    }
+  });
+}
+
+async function saveNotice(text) {
+  if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
+  await addDoc(collection(db, "avisos"), {
+    congregacaoId: state.congregationId,
+    texto: text,
+    publicadoEm: serverTimestamp(),
+    publicadoPor: state.user.email || "sem_email"
+  });
+}
+
+function handleNoticeAction(action, id) {
+  const notice = findNotice(id);
+  if (!notice || action !== "remove") return;
+  requestNoticePermission(() => openRemoveNoticeDialog(notice));
+}
+
+function openRemoveNoticeDialog(notice) {
+  let controls;
+  controls = openDialog({
+    title: "Excluir aviso",
+    help: "Este aviso deixará de aparecer para todos os usuários da congregação.",
+    fields: "",
+    cancelLabel: "Cancelar",
+    confirmLabel: "Excluir",
+    danger: true,
+    onSubmit: async () => {
+      await deleteDoc(notice.ref);
+      controls.close();
+      showToast("Aviso excluído.");
+    }
+  });
+}
+
 function territoryCard(id, data) {
   const name = data.nome?.toString() || "Território";
   const mapsUrl = data.mapsUrl?.toString() || "";
@@ -760,6 +915,9 @@ function territoryCard(id, data) {
   const progressStreet = data.progressoRua?.toString() || "";
   const progressNumber = data.progressoNumero?.toString() || "";
   const progressBy = data.progressoPor?.toString() || "";
+  const observation = data.observacao?.toString().trim() || "";
+  const observationBy = data.observacaoAtualizadaPor?.toString() || "";
+  const completionStatus = territoryCompletionStatus(data);
 
   return `
     <article class="territory-card ${finished ? "finished" : "pending"}">
@@ -772,6 +930,7 @@ function territoryCard(id, data) {
           <summary class="icon-btn" aria-label="Mais opções">⋮</summary>
           <div class="menu-panel">
             <button type="button" data-action="edit" data-id="${escapeHtml(id)}">Editar</button>
+            <button type="button" data-action="observation" data-id="${escapeHtml(id)}">${observation ? "Editar observação" : "Adicionar observação"}</button>
             <button type="button" data-action="progress" data-id="${escapeHtml(id)}">Registrar progresso (rua/nº)</button>
             <button type="button" data-action="clear-progress" data-id="${escapeHtml(id)}" ${partial ? "" : "disabled"}>Remover progresso</button>
             <button type="button" data-action="finish" data-id="${escapeHtml(id)}" ${finished ? "disabled" : ""}>Finalizar</button>
@@ -780,6 +939,7 @@ function territoryCard(id, data) {
         </details>
       </div>
       <div class="territory-meta">
+        <div class="completion-age">${escapeHtml(completionStatus)}</div>
         <div>Iniciado: ${escapeHtml(formatTimestamp(data.iniciadoEm))}</div>
         <div>Finalizado: ${escapeHtml(formatTimestamp(data.finalizadoEm))}${finishedBy ? ` (por ${escapeHtml(finishedBy)})` : ""}</div>
         <div>Reiniciado: ${escapeHtml(formatTimestamp(data.reiniciadoEm))}${restartedBy ? ` (por ${escapeHtml(restartedBy)})` : ""}</div>
@@ -789,6 +949,12 @@ function territoryCard(id, data) {
             <div class="progress-by">Registrado por: ${escapeHtml(progressBy || "-")} • ${escapeHtml(formatTimestamp(data.progressoEm))}</div>
           </div>` : ""}
       </div>
+      ${observation ? `
+        <div class="territory-observation">
+          <strong>Observação</strong>
+          <p>${escapeHtml(observation)}</p>
+          <small>Atualizada por: ${escapeHtml(observationBy || "-")} • ${escapeHtml(formatTimestamp(data.observacaoAtualizadaEm))}</small>
+        </div>` : ""}
       ${mapsUrl ? `
         <div class="maps-row">
           <span class="maps-link" title="${escapeHtml(mapsUrl)}">${escapeHtml(mapsUrl)}</span>
@@ -807,6 +973,7 @@ async function handleTerritoryAction(action, id) {
   document.querySelectorAll("details.menu[open]").forEach((menu) => menu.removeAttribute("open"));
   try {
     if (action === "edit") openTerritoryDialog(territory);
+    if (action === "observation") openObservationDialog(territory);
     if (action === "progress") openProgressDialog(territory);
     if (action === "clear-progress") await clearTerritoryProgress(territory);
     if (action === "finish") await finishTerritory(territory);
@@ -898,7 +1065,7 @@ function openDialog({ title, help = "", fields = "", cancelLabel = "Cancelar", c
     }
   });
   dialog.showModal();
-  dialog.querySelector("input")?.focus();
+  dialog.querySelector("input, textarea")?.focus();
   return { dialog, close };
 }
 
@@ -948,6 +1115,11 @@ async function saveTerritory({ id = null, name, mapsUrl = "" }) {
       iniciadoEm: serverTimestamp(),
       finalizadoEm: null,
       finalizadoPor: null,
+      ultimaFinalizacaoEm: null,
+      ultimaFinalizacaoPor: null,
+      observacao: null,
+      observacaoAtualizadaEm: null,
+      observacaoAtualizadaPor: null,
       reiniciadoEm: null,
       reiniciadoPor: null,
       ultimaAtualizacaoEm: serverTimestamp(),
@@ -961,6 +1133,38 @@ async function saveTerritory({ id = null, name, mapsUrl = "" }) {
       ultimaAtualizacaoPor: email
     });
   }
+}
+
+function openObservationDialog(territory) {
+  let controls;
+  controls = openDialog({
+    title: "Observação do território",
+    help: "Registre uma informação útil sobre acesso, retorno ou alguma particularidade deste território.",
+    fields: `
+      <div class="field">
+        <label for="territory-observation">Observação (opcional)</label>
+        <textarea id="territory-observation" name="observation" rows="5" maxlength="600">${escapeHtml(territory.data.observacao || "")}</textarea>
+        <small class="field-help">Para remover a observação atual, apague o texto e salve.</small>
+      </div>`,
+    confirmLabel: "Salvar observação",
+    onSubmit: async (formData) => {
+      const observation = String(formData.get("observation") || "").trim();
+      await saveTerritoryObservation(territory, observation);
+      controls.close();
+      showToast(observation ? "Observação salva." : "Observação removida.");
+    }
+  });
+}
+
+async function saveTerritoryObservation(territory, observation) {
+  const email = state.user?.email || "sem_email";
+  await updateDoc(territory.ref, {
+    observacao: observation || null,
+    observacaoAtualizadaEm: observation ? serverTimestamp() : null,
+    observacaoAtualizadaPor: observation ? email : null,
+    ultimaAtualizacaoEm: serverTimestamp(),
+    ultimaAtualizacaoPor: email
+  });
 }
 
 function openProgressDialog(territory) {
@@ -1025,6 +1229,8 @@ async function finishTerritory(territory) {
     finalizado: true,
     finalizadoEm: serverTimestamp(),
     finalizadoPor: email,
+    ultimaFinalizacaoEm: serverTimestamp(),
+    ultimaFinalizacaoPor: email,
     parcial: false,
     progressoRua: null,
     progressoNumero: null,
@@ -1092,7 +1298,9 @@ function registerWebMcpTools() {
         finished: data.finalizado === true,
         partial: data.parcial === true,
         progressStreet: data.progressoRua || null,
-        progressNumber: data.progressoNumero || null
+        progressNumber: data.progressoNumero || null,
+        observation: data.observacao || null,
+        lastCompletion: formatTimestamp(data.ultimaFinalizacaoEm || data.finalizadoEm)
       }))
     })
   });
@@ -1179,6 +1387,8 @@ onAuthStateChanged(auth, async (user) => {
     state.congregationId = null;
     state.congregation = null;
     state.territories = [];
+    state.schedules = [];
+    state.notices = [];
     renderLogin();
     return;
   }
