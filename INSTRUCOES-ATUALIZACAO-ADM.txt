@@ -1,0 +1,29 @@
+ATUALIZAÇÃO — PERFIS ADMINISTRATIVOS
+
+ARQUIVOS DO SITE (GitHub)
+1. Substitua app.js pelo novo app.js.
+2. Substitua styles.css pelo novo styles.css.
+3. Substitua sw.js pelo novo sw.js.
+4. Não exclua index.html, manifest.webmanifest nem a pasta icons.
+
+ORDEM SEGURA DA ATUALIZAÇÃO
+1. Primeiro publique os três arquivos acima no GitHub.
+2. Aguarde o GitHub Pages atualizar.
+3. Abra o aplicativo usando a conta que criou a congregação.
+4. Confirme que aparece “Administrador principal” e que o código continua visível.
+5. Somente depois publique o conteúdo de firestore.rules no Firebase:
+   Firebase Console > Firestore Database > Regras > substitua o conteúdo > Publicar.
+
+IMPORTANTE
+- O arquivo firestore.rules não precisa ser enviado ao GitHub para funcionar.
+- Ele deve ser copiado e colado na tela de Regras do Firestore.
+- Usuários existentes permanecem como usuários comuns.
+- O criador da congregação torna-se automaticamente o administrador principal.
+- O administrador principal usa “Administrar usuários” para promover ou remover administradores.
+- Administrador principal e administradores visualizam o código da congregação.
+- Usuários comuns não visualizam o código.
+- Territórios, históricos, observações, avisos e programações existentes não são apagados.
+
+SE ALGO NÃO APARECER DE IMEDIATO
+- Feche e abra novamente o PWA; ou
+- Atualize a página uma vez para receber a nova versão do cache.
