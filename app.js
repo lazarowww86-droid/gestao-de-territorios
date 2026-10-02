@@ -183,10 +183,23 @@ function initializeOneSignal() {
       resolve(value);
     };
 
-    const timeout = window.setTimeout(() => finish(null), 12000);
+    // O index.html cria esta fila ANTES de carregar o SDK. Mantemos esta
+    // proteção aqui para evitar erro caso o app.js seja usado isoladamente.
     window.OneSignalDeferred = window.OneSignalDeferred || [];
+
+    const timeout = window.setTimeout(() => {
+      state.notificationError =
+        "O SDK do OneSignal não respondeu. Verifique a conexão e atualize o aplicativo.";
+      console.error("OneSignal: tempo limite ao aguardar o SDK.");
+      finish(null);
+    }, 15000);
+
     window.OneSignalDeferred.push(async (OneSignal) => {
       try {
+        if (!OneSignal?.init) {
+          throw new Error("O SDK do OneSignal foi carregado de forma incompleta.");
+        }
+
         OneSignal.Debug?.setLogLevel?.("warn");
         await OneSignal.init({
           appId: ONESIGNAL_APP_ID,
@@ -195,7 +208,9 @@ function initializeOneSignal() {
           notifyButton: { enable: false },
           welcomeNotification: { disable: true }
         });
+
         state.oneSignal = OneSignal;
+        state.notificationError = "";
         window.clearTimeout(timeout);
         finish(OneSignal);
       } catch (error) {

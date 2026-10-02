@@ -14,6 +14,10 @@
     <link rel="icon" type="image/png" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="stylesheet" href="./styles.css">
+    <script>
+      // A fila precisa existir antes de o SDK do OneSignal ser carregado.
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+    </script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   </head>
   <body>
