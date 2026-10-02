@@ -13,20 +13,56 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=13">
     <script>
-      // Cria a fila e registra o callback ANTES do SDK carregar.
-      // Assim o app não perde o evento mesmo se o SDK terminar de carregar
-      // antes do app.js (módulo) ser executado.
+      /*
+       * Esta fila precisa existir ANTES de o SDK do OneSignal executar.
+       * Como o SDK externo usa "defer", deixar esta configuração no app.js
+       * criava uma corrida: o SDK podia carregar primeiro e nunca executar o init.
+       */
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.__oneSignalSdkPromise = new Promise((resolve) => {
-        window.OneSignalDeferred.push((OneSignal) => {
-          window.__oneSignalSdk = OneSignal;
-          resolve(OneSignal);
+      window.__oneSignalInitError = null;
+      window.__oneSignalReady = new Promise((resolve) => {
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+
+        window.__finishOneSignalInit = finish;
+        window.OneSignalDeferred.push(async (OneSignal) => {
+          try {
+            OneSignal.Debug?.setLogLevel?.("warn");
+            await OneSignal.init({
+              appId: "fb6a7811-19f7-443c-b0e6-4e8456d9502f",
+              serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
+              serviceWorkerParam: {
+                scope: "/gestao-de-territorios/push/onesignal/"
+              },
+              notifyButton: { enable: false },
+              welcomeNotification: { disable: true }
+            });
+            finish(OneSignal);
+          } catch (error) {
+            console.error("Falha ao iniciar o OneSignal", error);
+            window.__oneSignalInitError = error;
+            finish(null);
+          }
         });
       });
+
+      window.__oneSignalScriptError = () => {
+        const error = new Error("O navegador bloqueou o carregamento do OneSignal. Desative o bloqueador de anúncios ou a proteção antirrastreamento para este site e recarregue a página.");
+        window.__oneSignalInitError = error;
+        window.__finishOneSignalInit?.(null);
+      };
     </script>
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script
+      src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+      defer
+      onerror="window.__oneSignalScriptError()"
+    ></script>
   </head>
   <body>
     <noscript>Ative o JavaScript para usar o Gestão de Territórios.</noscript>
@@ -38,6 +74,6 @@
     </main>
     <div id="modal-root"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=13"></script>
   </body>
 </html>

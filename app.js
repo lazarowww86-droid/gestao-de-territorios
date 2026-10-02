@@ -39,10 +39,7 @@ const firebaseConfig = {
   storageBucket: "gestao-territorios.firebasestorage.app"
 };
 
-const ONESIGNAL_APP_ID = "fb6a7811-19f7-443c-b0e6-4e8456d9502f";
 const PUSH_API_URL = "https://gestao-territorios-notificacoes.lazarowww86.workers.dev";
-const ONESIGNAL_WORKER_PATH = "push/onesignal/OneSignalSDKWorker.js";
-const ONESIGNAL_WORKER_SCOPE = "/gestao-de-territorios/push/onesignal/";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
@@ -175,50 +172,32 @@ function initializeOneSignal() {
   if (state.oneSignal) return Promise.resolve(state.oneSignal);
   if (oneSignalReadyPromise) return oneSignalReadyPromise;
 
-  oneSignalReadyPromise = (async () => {
-    try {
-      // O index.html registra o callback antes do SDK do OneSignal carregar.
-      // Se o SDK já chegou, usamos a referência salva; caso contrário,
-      // aguardamos a Promise criada no index.
-      let OneSignal = window.__oneSignalSdk || null;
+  const sdkReady = window.__oneSignalReady;
+  if (!sdkReady || typeof sdkReady.then !== "function") {
+    state.notificationError = "A configuração do OneSignal não foi carregada. Atualize a página.";
+    return Promise.resolve(null);
+  }
 
-      if (!OneSignal && window.__oneSignalSdkPromise) {
-        OneSignal = await Promise.race([
-          window.__oneSignalSdkPromise,
-          new Promise((_, reject) =>
-            window.setTimeout(() => reject(new Error(
-              "O SDK do OneSignal não carregou. Verifique a conexão com a internet e tente novamente."
-            )), 15000)
-          )
-        ]);
+  const timeout = new Promise((resolve) => {
+    window.setTimeout(() => resolve(null), 20000);
+  });
+
+  oneSignalReadyPromise = Promise.race([sdkReady, timeout])
+    .then((OneSignal) => {
+      if (!OneSignal) {
+        const initError = window.__oneSignalInitError;
+        state.notificationError = initError?.message
+          || "O OneSignal demorou para carregar. Atualize a página e tente novamente.";
+        return null;
       }
-
-      if (!OneSignal?.init) {
-        throw new Error("O SDK do OneSignal não foi carregado corretamente.");
-      }
-
-      OneSignal.Debug?.setLogLevel?.("warn");
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        serviceWorkerPath: ONESIGNAL_WORKER_PATH,
-        serviceWorkerParam: { scope: ONESIGNAL_WORKER_SCOPE },
-        notifyButton: { enable: false },
-        welcomeNotification: { disable: true }
-      });
-
       state.oneSignal = OneSignal;
-      state.notificationError = "";
       return OneSignal;
-    } catch (error) {
-      console.error("Falha ao iniciar o OneSignal", error);
+    })
+    .catch((error) => {
+      console.error("Falha ao aguardar o OneSignal", error);
       state.notificationError = error?.message || "O serviço de notificações não iniciou.";
       return null;
-    }
-  })();
-
-  oneSignalReadyPromise.then((value) => {
-    if (!value) oneSignalReadyPromise = null;
-  });
+    });
 
   return oneSignalReadyPromise;
 }
@@ -252,7 +231,9 @@ async function syncPushIdentity({ requestPermission = false, showMessages = fals
   if (requestPermission) renderMainView();
   try {
     const OneSignal = await initializeOneSignal();
-    if (!OneSignal) throw new Error("O serviço de notificações não carregou.");
+    if (!OneSignal) {
+      throw new Error(state.notificationError || "O serviço de notificações não carregou.");
+    }
 
     if (requestPermission && !OneSignal.Notifications.permission) {
       await OneSignal.Notifications.requestPermission();
@@ -2006,7 +1987,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=13").catch(() => {});
   });
 }
 

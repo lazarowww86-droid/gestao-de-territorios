@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v13-onesignal-bootstrap";
+const CACHE_NAME = "gestao-territorios-v13-onesignal-init-head";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
+  "./styles.css?v=13",
+  "./app.js?v=13",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
