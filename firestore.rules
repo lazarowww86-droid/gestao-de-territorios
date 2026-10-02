@@ -98,6 +98,23 @@ service cloud.firestore {
           ])
         )
         || (
+          // Uma conta comum presa em uma congregação duplicada somente pode
+          // ser movida para o destino validado pelo próprio convite.
+          userId == request.auth.uid
+          && resource.data.tipoUsuario == 'usuario'
+          && request.resource.data.tipoUsuario == 'usuario'
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.codigoCongregacao == null
+          && request.resource.data.codigoVinculo is string
+          && exists(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo))
+          && get(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo)).data.congregacaoId == request.resource.data.congregacaoId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'congregacaoId',
+            'codigoVinculo',
+            'atualizadoEm'
+          ])
+        )
+        || (
           userId == request.auth.uid
           && request.resource.data.congregacaoId == resource.data.congregacaoId
           && request.resource.data.email == resource.data.email
