@@ -1,22 +1,25 @@
-ATUALIZAÇÃO — PERFIS ADMINISTRATIVOS
+ATUALIZAÇÃO V17 — NOVOS USUÁRIOS E NOTIFICAÇÕES
 
 ARQUIVOS DO SITE (GitHub)
-1. Substitua app.js pelo novo app.js.
-2. Substitua styles.css pelo novo styles.css.
-3. Substitua sw.js pelo novo sw.js.
-4. Não exclua index.html, manifest.webmanifest nem a pasta icons.
+1. Na raiz do repositório, substitua index.html, app.js, styles.css, sw.js e manifest.webmanifest.
+2. Envie também a pasta push com a subpasta onesignal e o arquivo OneSignalSDKWorker.js.
+3. Mantenha a pasta icons e os arquivos que já existem no repositório.
+4. Não apague a pasta push: ela é necessária para receber notificações com o aplicativo fechado.
 
 ORDEM SEGURA DA ATUALIZAÇÃO
-1. Primeiro publique os três arquivos acima no GitHub.
+1. Primeiro publique os arquivos do site no GitHub.
 2. Aguarde o GitHub Pages atualizar.
-3. Abra o aplicativo usando a conta que criou a congregação.
-4. Confirme que aparece “Administrador principal” e que o código continua visível.
-5. Somente depois publique o conteúdo de firestore.rules no Firebase:
+3. Publique o conteúdo do novo firestore.rules no Firebase:
    Firebase Console > Firestore Database > Regras > substitua o conteúdo > Publicar.
+4. Feche completamente o aplicativo e abra novamente.
+5. Teste com uma conta nova usando o código antigo NOVAV3X.
+6. Na conta nova, aceite as notificações quando o aplicativo solicitar.
 
 IMPORTANTE
 - O arquivo firestore.rules não precisa ser enviado ao GitHub para funcionar.
 - Ele deve ser copiado e colado na tela de Regras do Firestore.
+- A correção permite que contas novas usem tanto os convites atuais quanto o código antigo NOVAV3X.
+- A configuração do OneSignal e o caminho push/onesignal/OneSignalSDKWorker.js foram preservados.
 - Usuários existentes permanecem como usuários comuns.
 - O criador da congregação torna-se automaticamente o administrador principal.
 - O administrador principal usa “Administrar usuários” para promover ou remover administradores.
@@ -25,5 +28,5 @@ IMPORTANTE
 - Territórios, históricos, observações, avisos e programações existentes não são apagados.
 
 SE ALGO NÃO APARECER DE IMEDIATO
-- Feche e abra novamente o PWA; ou
-- Atualize a página uma vez para receber a nova versão do cache.
+- Feche completamente e abra novamente o PWA.
+- Se necessário, abra o site no navegador e atualize a página uma vez para receber a versão V17 do cache.

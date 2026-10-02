@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v16-legacy-code-fix";
+const CACHE_NAME = "gestao-territorios-v17-new-user-legacy-code-fix";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=16",
-  "./app.js?v=16",
+  "./styles.css?v=17",
+  "./app.js?v=17",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

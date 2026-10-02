@@ -66,8 +66,18 @@ service cloud.firestore {
           (request.resource.data.tipoUsuario == 'usuario'
             && request.resource.data.codigoCongregacao == null
             && request.resource.data.codigoVinculo is string
-            && exists(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo))
-            && get(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo)).data.congregacaoId == request.resource.data.congregacaoId)
+            && (
+              (
+                exists(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo))
+                && get(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo)).data.congregacaoId == request.resource.data.congregacaoId
+              )
+              || (
+                // Compatibilidade com congregações antigas: nelas, o código
+                // de convite ainda está salvo no próprio documento.
+                exists(/databases/$(database)/documents/congregacoes/$(request.resource.data.congregacaoId))
+                && get(/databases/$(database)/documents/congregacoes/$(request.resource.data.congregacaoId)).data.codigo == request.resource.data.codigoVinculo
+              )
+            ))
           || (request.resource.data.tipoUsuario == 'adm_principal'
             && creatorOf(request.resource.data.congregacaoId))
         );
