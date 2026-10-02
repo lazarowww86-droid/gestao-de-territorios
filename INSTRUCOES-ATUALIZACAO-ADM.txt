@@ -1,4 +1,4 @@
-ATUALIZAÇÃO V17 — NOVOS USUÁRIOS E NOTIFICAÇÕES
+ATUALIZAÇÃO V18 — NOVOS USUÁRIOS NA CONGREGAÇÃO CORRETA
 
 ARQUIVOS DO SITE (GitHub)
 1. Na raiz do repositório, substitua index.html, app.js, styles.css, sw.js e manifest.webmanifest.
@@ -9,16 +9,16 @@ ARQUIVOS DO SITE (GitHub)
 ORDEM SEGURA DA ATUALIZAÇÃO
 1. Primeiro publique os arquivos do site no GitHub.
 2. Aguarde o GitHub Pages atualizar.
-3. Publique o conteúdo do novo firestore.rules no Firebase:
-   Firebase Console > Firestore Database > Regras > substitua o conteúdo > Publicar.
-4. Feche completamente o aplicativo e abra novamente.
-5. Teste com uma conta nova usando o código antigo NOVAV3X.
-6. Na conta nova, aceite as notificações quando o aplicativo solicitar.
+3. Não é necessário publicar novamente o firestore.rules se a versão V17 já foi publicada.
+4. Feche completamente o aplicativo e entre primeiro com a conta do administrador principal.
+5. Aguarde alguns segundos para o código NOVAV3X ser reconectado à congregação correta.
+6. Depois teste com outra conta nova usando o código NOVAV3X.
+7. Na conta nova, aceite as notificações quando o aplicativo solicitar.
 
 IMPORTANTE
 - O arquivo firestore.rules não precisa ser enviado ao GitHub para funcionar.
 - Ele deve ser copiado e colado na tela de Regras do Firestore.
-- A correção permite que contas novas usem tanto os convites atuais quanto o código antigo NOVAV3X.
+- A correção V18 faz o administrador principal reafirmar NOVAV3X como o convite da congregação correta, evitando que contas novas entrem em um registro duplicado e vazio.
 - A configuração do OneSignal e o caminho push/onesignal/OneSignalSDKWorker.js foram preservados.
 - Usuários existentes permanecem como usuários comuns.
 - O criador da congregação torna-se automaticamente o administrador principal.
@@ -29,4 +29,4 @@ IMPORTANTE
 
 SE ALGO NÃO APARECER DE IMEDIATO
 - Feche completamente e abra novamente o PWA.
-- Se necessário, abra o site no navegador e atualize a página uma vez para receber a versão V17 do cache.
+- Se necessário, abra o site no navegador e atualize a página uma vez para receber a versão V18 do cache.

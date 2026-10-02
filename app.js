@@ -754,21 +754,26 @@ async function loadUserAccess(congregationRef) {
     state.userProfile = { ...(state.userProfile || {}), ...profileUpdate };
   }
 
-  if (creator && legacyCode) {
-    const codeKey = await congregationCodeKey(legacyCode);
+  // Sempre reafirma o código do administrador principal como o convite
+  // canônico desta congregação. Isso corrige automaticamente mapeamentos
+  // antigos que possam apontar para uma congregação duplicada e vazia.
+  if (creator && code) {
+    const codeKey = await congregationCodeKey(code);
     await setDoc(doc(db, "codigosCongregacao", codeKey), {
       congregacaoId: state.congregationId,
       codigoHash: codeKey,
       criadoPor: state.user.uid,
       criadoEm: state.congregation.criadaEm || serverTimestamp()
     }, { merge: true });
-    await updateDoc(congregationRef, {
-      criadaPor: state.user.uid,
-      codigo: deleteField(),
-      codigoMigradoEm: serverTimestamp(),
-      codigoMigradoPor: state.user.email || "sem_email"
-    });
-    delete state.congregation.codigo;
+    if (legacyCode) {
+      await updateDoc(congregationRef, {
+        criadaPor: state.user.uid,
+        codigo: deleteField(),
+        codigoMigradoEm: serverTimestamp(),
+        codigoMigradoPor: state.user.email || "sem_email"
+      });
+      delete state.congregation.codigo;
+    }
   }
 }
 
@@ -2009,7 +2014,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=17").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=18").catch(() => {});
   });
 }
 
