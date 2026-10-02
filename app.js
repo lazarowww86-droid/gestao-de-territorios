@@ -41,7 +41,7 @@ const firebaseConfig = {
 
 const ONESIGNAL_APP_ID = "fb6a7811-19f7-443c-b0e6-4e8456d9502f";
 const PUSH_API_URL = "https://gestao-territorios-notificacoes.lazarowww86.workers.dev";
-const ONESIGNAL_WORKER_PATH = "/gestao-de-territorios/push/onesignal/OneSignalSDKWorker.js";
+const ONESIGNAL_WORKER_PATH = "push/onesignal/OneSignalSDKWorker.js";
 const ONESIGNAL_WORKER_SCOPE = "/gestao-de-territorios/push/onesignal/";
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -84,10 +84,37 @@ const state = {
   oneSignal: null,
   notificationStatus: "checking",
   notificationBusy: false,
+  notificationError: "",
   webMcpLifecycle: null
 };
 
 let oneSignalReadyPromise = null;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function waitForPushSubscription(OneSignal) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const subscription = OneSignal.User?.PushSubscription;
+    if (subscription?.id && subscription.optedIn) return subscription.id;
+    await wait(750);
+  }
+  throw new Error("O OneSignal não concluiu o cadastro deste aparelho. Feche o aplicativo, abra novamente e tente mais uma vez.");
+}
+
+async function registerPushIdentity() {
+  let lastError = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await pushApi("/register");
+    } catch (error) {
+      lastError = error;
+      if (attempt < 4) await wait(1200);
+    }
+  }
+  throw lastError || new Error("Não foi possível vincular este aparelho à congregação.");
+}
 
 function escapeHtml(value = "") {
   return String(value)
@@ -160,6 +187,7 @@ function initializeOneSignal() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async (OneSignal) => {
       try {
+        OneSignal.Debug?.setLogLevel?.("warn");
         await OneSignal.init({
           appId: ONESIGNAL_APP_ID,
           serviceWorkerPath: ONESIGNAL_WORKER_PATH,
@@ -172,6 +200,7 @@ function initializeOneSignal() {
         finish(OneSignal);
       } catch (error) {
         console.error("Falha ao iniciar o OneSignal", error);
+        state.notificationError = error?.message || "O serviço de notificações não iniciou.";
         window.clearTimeout(timeout);
         finish(null);
       }
@@ -210,6 +239,7 @@ async function syncPushIdentity({ requestPermission = false, showMessages = fals
   }
 
   state.notificationBusy = true;
+  state.notificationError = "";
   if (requestPermission) renderMainView();
   try {
     const OneSignal = await initializeOneSignal();
@@ -234,12 +264,15 @@ async function syncPushIdentity({ requestPermission = false, showMessages = fals
       await OneSignal.User.PushSubscription.optIn();
     }
 
-    await pushApi("/register");
+    await waitForPushSubscription(OneSignal);
+    await registerPushIdentity();
     state.notificationStatus = "enabled";
+    state.notificationError = "";
     if (showMessages) showToast("Notificações ativadas para esta congregação.");
   } catch (error) {
     console.error("Falha ao sincronizar notificações", error);
     state.notificationStatus = Notification.permission === "denied" ? "blocked" : "error";
+    state.notificationError = error?.message || "Não foi possível ativar as notificações.";
     if (showMessages) showToast(error?.message || "Não foi possível ativar as notificações.");
   } finally {
     state.notificationBusy = false;
@@ -949,13 +982,13 @@ function notificationControl() {
 
   const loading = state.notificationBusy || state.notificationStatus === "checking";
   const message = state.notificationStatus === "error"
-    ? "Não foi possível conectar. Você pode tentar novamente."
+    ? state.notificationError || "Não foi possível conectar. Você pode tentar novamente."
     : "Ative uma vez neste aparelho para receber novos avisos mesmo com o aplicativo fechado.";
   return `
     <div class="notification-control">
       <div>
         <strong>Receba os avisos no celular</strong>
-        <p>${message}</p>
+        <p>${escapeHtml(message)}</p>
       </div>
       <button id="enable-notifications" class="btn btn-tonal" type="button" ${loading ? "disabled" : ""}>
         ${loading ? spinnerLabel("Verificando...") : "Ativar notificações"}
@@ -1984,6 +2017,7 @@ onAuthStateChanged(auth, async (user) => {
     state.notices = [];
     state.notificationStatus = "checking";
     state.notificationBusy = false;
+    state.notificationError = "";
     renderLogin();
     return;
   }
