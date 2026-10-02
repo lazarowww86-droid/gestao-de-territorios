@@ -1,0 +1,212 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function currentProfile() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function belongsTo(congregationId) {
+      return hasProfile() && currentProfile().congregacaoId == congregationId;
+    }
+
+    function isAdministratorOf(congregationId) {
+      return belongsTo(congregationId)
+        && currentProfile().tipoUsuario in ['adm_principal', 'admin'];
+    }
+
+    function isPrincipalAdministratorOf(congregationId) {
+      return belongsTo(congregationId)
+        && currentProfile().tipoUsuario == 'adm_principal';
+    }
+
+    function congregationCreatorUid(congregationData) {
+      return congregationData.get(
+        'criadaPor',
+        congregationData.get('criadaPorUid', null)
+      );
+    }
+
+    function creatorOf(congregationId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/congregacoes/$(congregationId))
+        && congregationCreatorUid(
+          get(/databases/$(database)/documents/congregacoes/$(congregationId)).data
+        ) == request.auth.uid;
+    }
+
+    function sameExistingCongregation() {
+      return belongsTo(resource.data.congregacaoId);
+    }
+
+    function sameNewCongregation() {
+      return belongsTo(request.resource.data.congregacaoId);
+    }
+
+    match /usuarios/{userId} {
+      allow read: if signedIn() && (
+        userId == request.auth.uid
+        || (isPrincipalAdministratorOf(resource.data.congregacaoId)
+          && resource.data.congregacaoId == currentProfile().congregacaoId)
+      );
+
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && (
+          (request.resource.data.tipoUsuario == 'usuario'
+            && request.resource.data.codigoCongregacao == null
+            && request.resource.data.codigoVinculo is string
+            && exists(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo))
+            && get(/databases/$(database)/documents/codigosCongregacao/$(request.resource.data.codigoVinculo)).data.congregacaoId == request.resource.data.congregacaoId)
+          || (request.resource.data.tipoUsuario == 'adm_principal'
+            && creatorOf(request.resource.data.congregacaoId))
+        );
+
+      allow update: if signedIn() && (
+        (
+          userId == request.auth.uid
+          && creatorOf(request.resource.data.congregacaoId)
+          && request.resource.data.congregacaoId == resource.data.congregacaoId
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.tipoUsuario == 'adm_principal'
+          && request.resource.data.codigoCongregacao is string
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'tipoUsuario',
+            'codigoCongregacao',
+            'codigoVinculo',
+            'atualizadoEm'
+          ])
+        )
+        || (
+          userId == request.auth.uid
+          && request.resource.data.congregacaoId == resource.data.congregacaoId
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.tipoUsuario == resource.data.get('tipoUsuario', 'usuario')
+          && request.resource.data.get('codigoCongregacao', null) == resource.data.get('codigoCongregacao', null)
+          && request.resource.data.get('codigoVinculo', null) == resource.data.get('codigoVinculo', null)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'tipoUsuario',
+            'codigoCongregacao',
+            'codigoVinculo',
+            'atualizadoEm'
+          ])
+        )
+        || (
+          isPrincipalAdministratorOf(resource.data.congregacaoId)
+          && request.resource.data.congregacaoId == resource.data.congregacaoId
+          && request.resource.data.tipoUsuario in ['usuario', 'admin']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'tipoUsuario',
+            'codigoCongregacao',
+            'funcaoAtualizadaPor',
+            'funcaoAtualizadaEm',
+            'atualizadoEm'
+          ])
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    match /congregacoes/{congregationId} {
+      allow create: if signedIn()
+        && request.resource.data.criadaPor == request.auth.uid;
+
+      allow get: if signedIn() && (
+        belongsTo(congregationId)
+        || resource.data.codigo is string
+      );
+
+      // Compatibilidade temporária para congregações antigas que ainda
+      // possuem o código dentro do próprio documento.
+      allow list: if signedIn() && resource.data.codigo is string;
+
+      allow update: if signedIn() && (
+        isPrincipalAdministratorOf(congregationId)
+        || congregationCreatorUid(resource.data) == request.auth.uid
+      );
+
+      allow delete: if false;
+    }
+
+    match /codigosCongregacao/{code} {
+      // O código funciona como convite: somente quem já o conhece consegue
+      // consultar o documento exato. Listagens da coleção são bloqueadas.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create, update: if signedIn()
+        && request.resource.data.congregacaoId is string
+        && request.resource.data.codigoHash == code
+        && (
+          creatorOf(request.resource.data.congregacaoId)
+          || isPrincipalAdministratorOf(request.resource.data.congregacaoId)
+        );
+
+      allow delete: if signedIn()
+        && isPrincipalAdministratorOf(resource.data.congregacaoId);
+    }
+
+    match /territorios/{territoryId} {
+      allow read: if sameExistingCongregation();
+
+      allow create: if sameNewCongregation()
+        && isAdministratorOf(request.resource.data.congregacaoId);
+
+      allow update: if sameExistingCongregation()
+        && request.resource.data.congregacaoId == resource.data.congregacaoId
+        && (
+          isAdministratorOf(resource.data.congregacaoId)
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'finalizado',
+            'finalizadoEm',
+            'finalizadoPor',
+            'ultimaFinalizacaoEm',
+            'ultimaFinalizacaoPor',
+            'parcial',
+            'progressoRua',
+            'progressoNumero',
+            'progressoEm',
+            'progressoPor',
+            'iniciadoEm',
+            'reiniciadoEm',
+            'reiniciadoPor',
+            'observacao',
+            'observacaoAtualizadaEm',
+            'observacaoAtualizadaPor',
+            'ultimaAtualizacaoEm',
+            'ultimaAtualizacaoPor'
+          ])
+        );
+
+      allow delete: if sameExistingCongregation()
+        && isAdministratorOf(resource.data.congregacaoId);
+    }
+
+    match /programacoes/{scheduleId} {
+      allow read: if sameExistingCongregation();
+      allow create: if sameNewCongregation()
+        && isAdministratorOf(request.resource.data.congregacaoId);
+      allow update, delete: if sameExistingCongregation()
+        && isAdministratorOf(resource.data.congregacaoId);
+    }
+
+    match /avisos/{noticeId} {
+      allow read: if sameExistingCongregation();
+      allow create: if sameNewCongregation()
+        && isAdministratorOf(request.resource.data.congregacaoId);
+      allow update, delete: if sameExistingCongregation()
+        && isAdministratorOf(resource.data.congregacaoId);
+    }
+  }
+}

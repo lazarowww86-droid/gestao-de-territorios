@@ -39,6 +39,11 @@ const firebaseConfig = {
   storageBucket: "gestao-territorios.firebasestorage.app"
 };
 
+const ONESIGNAL_APP_ID = "fb6a7811-19f7-443c-b0e6-4e8456d9502f";
+const PUSH_API_URL = "https://gestao-territorios-notificacoes.lazarowww86.workers.dev";
+const ONESIGNAL_WORKER_PATH = "/gestao-de-territorios/push/onesignal/OneSignalSDKWorker.js";
+const ONESIGNAL_WORKER_SCOPE = "/gestao-de-territorios/push/onesignal/";
+
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 auth.languageCode = "pt-BR";
@@ -76,8 +81,13 @@ const state = {
   stopUserProfile: null,
   installPrompt: null,
   toastTimer: null,
+  oneSignal: null,
+  notificationStatus: "checking",
+  notificationBusy: false,
   webMcpLifecycle: null
 };
+
+let oneSignalReadyPromise = null;
 
 function escapeHtml(value = "") {
   return String(value)
@@ -132,6 +142,118 @@ function showToast(message) {
   state.toastTimer = setTimeout(() => {
     toastElement.hidden = true;
   }, 3600);
+}
+
+function initializeOneSignal() {
+  if (state.oneSignal) return Promise.resolve(state.oneSignal);
+  if (oneSignalReadyPromise) return oneSignalReadyPromise;
+
+  oneSignalReadyPromise = new Promise((resolve) => {
+    let completed = false;
+    const finish = (value) => {
+      if (completed) return;
+      completed = true;
+      resolve(value);
+    };
+
+    const timeout = window.setTimeout(() => finish(null), 12000);
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      try {
+        await OneSignal.init({
+          appId: ONESIGNAL_APP_ID,
+          serviceWorkerPath: ONESIGNAL_WORKER_PATH,
+          serviceWorkerParam: { scope: ONESIGNAL_WORKER_SCOPE },
+          notifyButton: { enable: false },
+          welcomeNotification: { disable: true }
+        });
+        state.oneSignal = OneSignal;
+        window.clearTimeout(timeout);
+        finish(OneSignal);
+      } catch (error) {
+        console.error("Falha ao iniciar o OneSignal", error);
+        window.clearTimeout(timeout);
+        finish(null);
+      }
+    });
+  });
+
+  oneSignalReadyPromise.then((value) => {
+    if (!value) oneSignalReadyPromise = null;
+  });
+
+  return oneSignalReadyPromise;
+}
+
+async function pushApi(path, body = {}) {
+  if (!state.user) throw new Error("Faça login novamente.");
+  const idToken = await state.user.getIdToken();
+  const response = await fetch(`${PUSH_API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${idToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Não foi possível configurar as notificações.");
+  return data;
+}
+
+async function syncPushIdentity({ requestPermission = false, showMessages = false } = {}) {
+  if (!state.user || !state.congregationId || state.notificationBusy) return;
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    state.notificationStatus = "unsupported";
+    renderMainView();
+    return;
+  }
+
+  state.notificationBusy = true;
+  if (requestPermission) renderMainView();
+  try {
+    const OneSignal = await initializeOneSignal();
+    if (!OneSignal) throw new Error("O serviço de notificações não carregou.");
+
+    if (requestPermission && !OneSignal.Notifications.permission) {
+      await OneSignal.Notifications.requestPermission();
+    }
+
+    if (!OneSignal.Notifications.permission) {
+      state.notificationStatus = Notification.permission === "denied" ? "blocked" : "disabled";
+      if (showMessages && state.notificationStatus === "blocked") {
+        showToast("As notificações estão bloqueadas nas permissões deste site.");
+      }
+      return;
+    }
+
+    await OneSignal.login(state.user.uid);
+    if (OneSignal.User?.PushSubscription
+      && !OneSignal.User.PushSubscription.optedIn
+      && typeof OneSignal.User.PushSubscription.optIn === "function") {
+      await OneSignal.User.PushSubscription.optIn();
+    }
+
+    await pushApi("/register");
+    state.notificationStatus = "enabled";
+    if (showMessages) showToast("Notificações ativadas para esta congregação.");
+  } catch (error) {
+    console.error("Falha ao sincronizar notificações", error);
+    state.notificationStatus = Notification.permission === "denied" ? "blocked" : "error";
+    if (showMessages) showToast(error?.message || "Não foi possível ativar as notificações.");
+  } finally {
+    state.notificationBusy = false;
+    if (state.user && state.congregationId) renderMainView();
+  }
+}
+
+async function disconnectPushIdentity() {
+  try {
+    const OneSignal = state.oneSignal || await initializeOneSignal();
+    if (OneSignal && typeof OneSignal.logout === "function") await OneSignal.logout();
+  } catch (error) {
+    console.warn("Não foi possível encerrar a identificação do OneSignal", error);
+  }
 }
 
 function setOnlineState() {
@@ -519,6 +641,9 @@ async function loadTerritoriesPage() {
     subscribeSchedules();
     subscribeNotices();
     subscribeUserProfileAccess();
+    syncPushIdentity().catch((error) => {
+      console.warn("Não foi possível sincronizar as notificações", error);
+    });
   } catch (error) {
     renderRecoverableError("Não foi possível carregar a congregação.", loadTerritoriesPage, error);
   }
@@ -790,6 +915,54 @@ function nextScheduleBanner() {
     </section>`;
 }
 
+function notificationControl() {
+  if (state.notificationStatus === "enabled") {
+    return `
+      <div class="notification-control enabled" role="status">
+        <span class="notification-control__icon" aria-hidden="true">✓</span>
+        <div>
+          <strong>Notificações ativadas</strong>
+          <p>Este aparelho receberá os novos avisos da sua congregação.</p>
+        </div>
+      </div>`;
+  }
+
+  if (state.notificationStatus === "unsupported") {
+    return `
+      <div class="notification-control unavailable" role="status">
+        <div>
+          <strong>Notificações indisponíveis</strong>
+          <p>Este navegador não oferece notificações para o aplicativo.</p>
+        </div>
+      </div>`;
+  }
+
+  if (state.notificationStatus === "blocked") {
+    return `
+      <div class="notification-control unavailable" role="status">
+        <div>
+          <strong>Notificações bloqueadas</strong>
+          <p>Libere as notificações nas permissões deste site e abra o aplicativo novamente.</p>
+        </div>
+      </div>`;
+  }
+
+  const loading = state.notificationBusy || state.notificationStatus === "checking";
+  const message = state.notificationStatus === "error"
+    ? "Não foi possível conectar. Você pode tentar novamente."
+    : "Ative uma vez neste aparelho para receber novos avisos mesmo com o aplicativo fechado.";
+  return `
+    <div class="notification-control">
+      <div>
+        <strong>Receba os avisos no celular</strong>
+        <p>${message}</p>
+      </div>
+      <button id="enable-notifications" class="btn btn-tonal" type="button" ${loading ? "disabled" : ""}>
+        ${loading ? spinnerLabel("Verificando...") : "Ativar notificações"}
+      </button>
+    </div>`;
+}
+
 function noticesPanel() {
   const administrator = isAdministrator();
   return `
@@ -801,6 +974,7 @@ function noticesPanel() {
         </div>
         ${administrator ? `<button id="add-notice" class="btn btn-outlined" type="button">Novo aviso</button>` : ""}
       </div>
+      ${notificationControl()}
       <div class="notice-list">
         ${state.notices.length ? state.notices.map((notice) => `
           <article class="notice-card">
@@ -856,6 +1030,9 @@ function renderTerritories() {
     renderMainView();
   });
   document.querySelector("#add-notice")?.addEventListener("click", () => requestNoticePermission(openNoticeDialog));
+  document.querySelector("#enable-notifications")?.addEventListener("click", () => {
+    syncPushIdentity({ requestPermission: true, showMessages: true });
+  });
   document.querySelectorAll("[data-notice-action]").forEach((button) => {
     button.addEventListener("click", () => handleNoticeAction(button.dataset.noticeAction, button.dataset.id));
   });
@@ -1140,9 +1317,11 @@ function openNoticeDialog() {
     onSubmit: async (formData, setError) => {
       const text = String(formData.get("text") || "").trim();
       if (!text) return setError("Digite o aviso.");
-      await saveNotice(text);
+      const result = await saveNotice(text);
       controls.close();
-      showToast("Aviso publicado para a congregação.");
+      showToast(result.notificationSent
+        ? "Aviso publicado e notificação enviada."
+        : "Aviso publicado, mas a notificação do celular não pôde ser enviada.");
     }
   });
 }
@@ -1150,12 +1329,19 @@ function openNoticeDialog() {
 async function saveNotice(text) {
   if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
   if (!isAdministrator()) throw new Error("Somente administradores podem publicar avisos.");
-  await addDoc(collection(db, "avisos"), {
+  const noticeRef = await addDoc(collection(db, "avisos"), {
     congregacaoId: state.congregationId,
     texto: text,
     publicadoEm: serverTimestamp(),
     publicadoPor: state.user.email || "sem_email"
   });
+  try {
+    const result = await pushApi("/notify", { noticeId: noticeRef.id });
+    return { notificationSent: true, recipients: result.recipients ?? null };
+  } catch (error) {
+    console.error("O aviso foi salvo, mas o push falhou", error);
+    return { notificationSent: false, error };
+  }
 }
 
 function handleNoticeAction(action, id) {
@@ -1785,6 +1971,7 @@ if ("serviceWorker" in navigator) {
 onAuthStateChanged(auth, async (user) => {
   state.user = user;
   if (!user) {
+    disconnectPushIdentity();
     state.stopUserProfile?.();
     state.stopUserProfile = null;
     state.userProfile = null;
@@ -1795,6 +1982,8 @@ onAuthStateChanged(auth, async (user) => {
     state.territories = [];
     state.schedules = [];
     state.notices = [];
+    state.notificationStatus = "checking";
+    state.notificationBusy = false;
     renderLogin();
     return;
   }
