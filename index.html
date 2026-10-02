@@ -15,8 +15,16 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="stylesheet" href="./styles.css">
     <script>
-      // A fila precisa existir antes de o SDK do OneSignal ser carregado.
+      // Cria a fila e registra o callback ANTES do SDK carregar.
+      // Assim o app não perde o evento mesmo se o SDK terminar de carregar
+      // antes do app.js (módulo) ser executado.
       window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.__oneSignalSdkPromise = new Promise((resolve) => {
+        window.OneSignalDeferred.push((OneSignal) => {
+          window.__oneSignalSdk = OneSignal;
+          resolve(OneSignal);
+        });
+      });
     </script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   </head>

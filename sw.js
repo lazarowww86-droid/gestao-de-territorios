@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestao-territorios-v12-correcao-onesignal";
+const CACHE_NAME = "gestao-territorios-v13-onesignal-bootstrap";
 const APP_SHELL = [
   "./",
   "./index.html",
