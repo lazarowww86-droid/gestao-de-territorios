@@ -565,11 +565,11 @@ async function congregationCodeKey(code) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function linkUserToCongregation(congregationId, role = USER_ROLES.USER, congregationCode = "", invitationCode = "") {
+async function linkUserToCongregation(congregationId, role = USER_ROLES.USER, congregationCode = "", invitationCode = "", invitationLinkKey = "") {
   if (!state.user) throw new Error("Usuário não logado");
   const normalizedRole = normalizeUserRole(role);
   const codeLink = normalizedRole === USER_ROLES.USER
-    ? await congregationCodeKey(invitationCode) || state.userProfile?.codigoVinculo || null
+    ? invitationLinkKey || await congregationCodeKey(invitationCode) || state.userProfile?.codigoVinculo || null
     : state.userProfile?.codigoVinculo || null;
   const payload = {
     congregacaoId: congregationId,
@@ -638,24 +638,36 @@ async function joinCongregation(event) {
   button.innerHTML = spinnerLabel("Entrando...");
   try {
     let congregationId = "";
+    let invitationLinkKey = "";
     const codeKey = await congregationCodeKey(code);
     let codeDoc = await getDoc(doc(db, "codigosCongregacao", codeKey));
-    if (!codeDoc.exists()) {
+    if (codeDoc.exists()) {
+      congregationId = codeDoc.data().congregacaoId?.toString() || "";
+      invitationLinkKey = codeKey;
+    } else {
       // Compatibilidade com uma versão intermediária que usava o código como ID.
       codeDoc = await getDoc(doc(db, "codigosCongregacao", code));
+      if (codeDoc.exists()) {
+        congregationId = codeDoc.data().congregacaoId?.toString() || "";
+        invitationLinkKey = code;
+      }
     }
-    if (codeDoc.exists()) congregationId = codeDoc.data().congregacaoId?.toString() || "";
 
     if (!congregationId) {
+      // Compatibilidade com congregações antigas que ainda guardam o código
+      // diretamente no documento da congregação (ex.: NOVAV3X).
       const legacyMatch = await getDocs(query(collection(db, "congregacoes"), where("codigo", "==", code), limit(1)));
-      if (!legacyMatch.empty) congregationId = legacyMatch.docs[0].id;
+      if (!legacyMatch.empty) {
+        congregationId = legacyMatch.docs[0].id;
+        invitationLinkKey = code;
+      }
     }
 
     if (!congregationId) {
       renderCongregation("Código não encontrado.");
       return;
     }
-    await linkUserToCongregation(congregationId, USER_ROLES.USER, "", code);
+    await linkUserToCongregation(congregationId, USER_ROLES.USER, "", code, invitationLinkKey);
     await loadTerritoriesPage();
   } catch (error) {
     renderCongregation(firebaseError(error, "Não foi possível entrar. Tente novamente."));
