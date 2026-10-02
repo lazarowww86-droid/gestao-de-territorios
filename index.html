@@ -13,7 +13,7 @@
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
-    <link rel="stylesheet" href="./styles.css?v=13">
+    <link rel="stylesheet" href="./styles.css?v=14">
     <script>
       /*
        * Esta fila precisa existir ANTES de o SDK do OneSignal executar.
@@ -36,7 +36,7 @@
             OneSignal.Debug?.setLogLevel?.("warn");
             await OneSignal.init({
               appId: "fb6a7811-19f7-443c-b0e6-4e8456d9502f",
-              serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
+              serviceWorkerPath: "/gestao-de-territorios/push/onesignal/OneSignalSDKWorker.js",
               serviceWorkerParam: {
                 scope: "/gestao-de-territorios/push/onesignal/"
               },
@@ -74,6 +74,6 @@
     </main>
     <div id="modal-root"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./app.js?v=13"></script>
+    <script type="module" src="./app.js?v=14"></script>
   </body>
 </html>
