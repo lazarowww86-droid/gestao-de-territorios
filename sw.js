@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v14-onesignal-worker-path";
+const CACHE_NAME = "gestao-territorios-v15-onesignal-sdk-tags";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=14",
-  "./app.js?v=14",
+  "./styles.css?v=15",
+  "./app.js?v=15",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

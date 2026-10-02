@@ -100,17 +100,27 @@ async function waitForPushSubscription(OneSignal) {
   throw new Error("O OneSignal não concluiu o cadastro deste aparelho. Feche o aplicativo, abra novamente e tente mais uma vez.");
 }
 
-async function registerPushIdentity() {
-  let lastError = null;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      return await pushApi("/register");
-    } catch (error) {
-      lastError = error;
-      if (attempt < 4) await wait(1200);
-    }
+async function syncOneSignalCongregationTag(OneSignal) {
+  const congregationId = String(state.congregationId || "").trim();
+  if (!congregationId) {
+    throw new Error("Sua conta ainda não está vinculada a uma congregação.");
   }
-  throw lastError || new Error("Não foi possível vincular este aparelho à congregação.");
+
+  if (typeof OneSignal.User?.addTag !== "function") {
+    throw new Error("O OneSignal não disponibilizou o cadastro da congregação.");
+  }
+
+  await OneSignal.User.addTag("congregacao_id", congregationId);
+
+  if (typeof OneSignal.User.getTags !== "function") return;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const tags = await OneSignal.User.getTags();
+    if (String(tags?.congregacao_id || "") === congregationId) return;
+    await wait(500);
+  }
+
+  throw new Error("O OneSignal não confirmou a congregação deste aparelho. Tente novamente.");
 }
 
 function escapeHtml(value = "") {
@@ -255,7 +265,7 @@ async function syncPushIdentity({ requestPermission = false, showMessages = fals
     }
 
     await waitForPushSubscription(OneSignal);
-    await registerPushIdentity();
+    await syncOneSignalCongregationTag(OneSignal);
     state.notificationStatus = "enabled";
     state.notificationError = "";
     if (showMessages) showToast("Notificações ativadas para esta congregação.");
