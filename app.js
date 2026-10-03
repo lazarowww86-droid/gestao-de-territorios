@@ -359,6 +359,7 @@ function renderLogin(error = "") {
           <div class="field">
             <label for="password">Senha</label>
             <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <p class="field-help"><strong>Primeiro acesso:</strong> para criar sua conta, use uma senha com pelo menos 6 números, sem letras ou símbolos.</p>
           </div>
           <div id="login-error" class="error-box" ${error ? "" : "hidden"}>${escapeHtml(error)}</div>
           <div id="login-message" class="success-box" hidden></div>
@@ -470,29 +471,7 @@ async function loadHome() {
   renderLoading();
   try {
     const userDoc = await getDoc(doc(db, "usuarios", state.user.uid));
-    let profile = userDoc.exists() ? userDoc.data() : {};
-    if (userDoc.exists()) {
-      try {
-        const canonical = await canonicalCongregationForProfile(profile);
-        const currentCongregationId = String(profile.congregacaoId || "").trim();
-        const currentLink = String(profile.codigoVinculo || "").trim();
-        if (canonical && (
-          canonical.congregationId !== currentCongregationId
-          || canonical.linkKey !== currentLink
-        )) {
-          const migration = {
-            congregacaoId: canonical.congregationId,
-            codigoVinculo: canonical.linkKey,
-            atualizadoEm: serverTimestamp()
-          };
-          await setDoc(doc(db, "usuarios", state.user.uid), migration, { merge: true });
-          profile = { ...profile, ...migration };
-        }
-      } catch (error) {
-        console.warn("Não foi possível corrigir automaticamente o vínculo da congregação", error);
-      }
-    }
-    state.userProfile = profile;
+    state.userProfile = userDoc.exists() ? userDoc.data() : {};
     state.userRole = normalizeUserRole(state.userProfile.tipoUsuario);
     const congregationId = state.userProfile.congregacaoId;
     state.congregationId = typeof congregationId === "string" && congregationId.trim() ? congregationId : null;
@@ -585,29 +564,6 @@ async function congregationCodeKey(code) {
   const data = new TextEncoder().encode(normalizedCode);
   const digest = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function canonicalCongregationForProfile(profile) {
-  if (normalizeUserRole(profile?.tipoUsuario) !== USER_ROLES.USER) return null;
-  const currentLink = String(profile?.codigoVinculo || "").trim();
-  if (!currentLink) return null;
-
-  const linkCandidates = [];
-  if (/^[a-f0-9]{64}$/i.test(currentLink)) {
-    linkCandidates.push(currentLink.toLowerCase());
-  } else {
-    linkCandidates.push(await congregationCodeKey(currentLink), currentLink);
-  }
-
-  for (const linkKey of [...new Set(linkCandidates.filter(Boolean))]) {
-    const codeSnapshot = await getDoc(doc(db, "codigosCongregacao", linkKey));
-    const congregationId = codeSnapshot.exists()
-      ? String(codeSnapshot.data().congregacaoId || "").trim()
-      : "";
-    if (congregationId) return { congregationId, linkKey };
-  }
-
-  return null;
 }
 
 async function linkUserToCongregation(congregationId, role = USER_ROLES.USER, congregationCode = "", invitationCode = "", invitationLinkKey = "") {
@@ -799,26 +755,21 @@ async function loadUserAccess(congregationRef) {
     state.userProfile = { ...(state.userProfile || {}), ...profileUpdate };
   }
 
-  // Sempre reafirma o código do administrador principal como o convite
-  // canônico desta congregação. Isso corrige automaticamente mapeamentos
-  // antigos que possam apontar para uma congregação duplicada e vazia.
-  if (role === USER_ROLES.PRINCIPAL_ADMIN && code) {
-    const codeKey = await congregationCodeKey(code);
+  if (creator && legacyCode) {
+    const codeKey = await congregationCodeKey(legacyCode);
     await setDoc(doc(db, "codigosCongregacao", codeKey), {
       congregacaoId: state.congregationId,
       codigoHash: codeKey,
       criadoPor: state.user.uid,
       criadoEm: state.congregation.criadaEm || serverTimestamp()
     }, { merge: true });
-    if (legacyCode) {
-      await updateDoc(congregationRef, {
-        criadaPor: state.user.uid,
-        codigo: deleteField(),
-        codigoMigradoEm: serverTimestamp(),
-        codigoMigradoPor: state.user.email || "sem_email"
-      });
-      delete state.congregation.codigo;
-    }
+    await updateDoc(congregationRef, {
+      criadaPor: state.user.uid,
+      codigo: deleteField(),
+      codigoMigradoEm: serverTimestamp(),
+      codigoMigradoPor: state.user.email || "sem_email"
+    });
+    delete state.congregation.codigo;
   }
 }
 
@@ -2059,7 +2010,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=19").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=14").catch(() => {});
   });
 }
 

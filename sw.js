@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v19-auto-relink-users";
+const CACHE_NAME = "gestao-territorios-v18-password-notice-only";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=19",
-  "./app.js?v=19",
+  "./styles.css?v=18",
+  "./app.js?v=18",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
