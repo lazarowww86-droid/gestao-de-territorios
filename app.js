@@ -70,6 +70,9 @@ const state = {
   territories: [],
   schedules: [],
   notices: [],
+  noticeLikes: new Map(),
+  noticeLikeStops: new Map(),
+  noticeLikeBusy: new Set(),
   activeMainTab: "territories",
   activeCongregationTab: "create",
   stopTerritories: null,
@@ -346,6 +349,7 @@ function renderLogin(error = "") {
   state.stopSchedules = null;
   state.stopNotices?.();
   state.stopNotices = null;
+  clearNoticeLikeSubscriptions();
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Login</h1></header>
@@ -811,8 +815,52 @@ function timestampMilliseconds(value) {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
+function clearNoticeLikeSubscriptions() {
+  state.noticeLikeStops.forEach((stop) => stop());
+  state.noticeLikeStops.clear();
+  state.noticeLikes.clear();
+  state.noticeLikeBusy.clear();
+}
+
+function syncNoticeLikeSubscriptions() {
+  const activeNoticeIds = new Set(state.notices.map((notice) => notice.id));
+
+  state.noticeLikeStops.forEach((stop, noticeId) => {
+    if (activeNoticeIds.has(noticeId)) return;
+    stop();
+    state.noticeLikeStops.delete(noticeId);
+    state.noticeLikes.delete(noticeId);
+    state.noticeLikeBusy.delete(noticeId);
+  });
+
+  state.notices.forEach((notice) => {
+    if (state.noticeLikeStops.has(notice.id)) return;
+
+    const likesRef = collection(db, "avisos", notice.id, "curtidas");
+    const stop = onSnapshot(likesRef, (snapshot) => {
+      const next = {
+        total: snapshot.size,
+        liked: snapshot.docs.some((item) => item.id === state.user?.uid),
+        loaded: true
+      };
+      const previous = state.noticeLikes.get(notice.id);
+      state.noticeLikes.set(notice.id, next);
+      if (!previous || previous.total !== next.total || previous.liked !== next.liked || !previous.loaded) {
+        renderMainView();
+      }
+    }, (error) => {
+      console.warn("Não foi possível carregar as curtidas do aviso", error);
+      state.noticeLikes.set(notice.id, { total: 0, liked: false, loaded: false, error: true });
+      renderMainView();
+    });
+
+    state.noticeLikeStops.set(notice.id, stop);
+  });
+}
+
 function subscribeNotices() {
   state.stopNotices?.();
+  clearNoticeLikeSubscriptions();
   const noticesQuery = query(
     collection(db, "avisos"),
     where("congregacaoId", "==", state.congregationId)
@@ -821,6 +869,7 @@ function subscribeNotices() {
     state.notices = snapshot.docs
       .map((item) => ({ id: item.id, ref: item.ref, data: item.data() }))
       .sort((a, b) => timestampMilliseconds(b.data.publicadoEm) - timestampMilliseconds(a.data.publicadoEm));
+    syncNoticeLikeSubscriptions();
     renderMainView();
   }, (error) => {
     showToast(firebaseError(error, "Não foi possível carregar os avisos."));
@@ -1025,6 +1074,7 @@ function noticesPanel() {
         ${state.notices.length ? state.notices.map((notice) => `
           <article class="notice-card">
             <p>${escapeHtml(notice.data.texto || "")}</p>
+            ${noticeLikeControl(notice.id)}
             <div class="notice-footer">
               <span>Publicado por: ${escapeHtml(notice.data.publicadoPor || "-")} • ${escapeHtml(formatTimestamp(notice.data.publicadoEm))}</span>
               ${administrator ? `<button class="notice-remove" type="button" data-notice-action="remove" data-id="${escapeHtml(notice.id)}">Excluir</button>` : ""}
@@ -1032,6 +1082,28 @@ function noticesPanel() {
           </article>`).join("") : `<p class="notice-empty">Nenhum aviso publicado.</p>`}
       </div>
     </section>`;
+}
+
+function noticeLikeControl(noticeId) {
+  const likes = state.noticeLikes.get(noticeId) || { total: 0, liked: false, loaded: false };
+  const busy = state.noticeLikeBusy.has(noticeId);
+  const disabled = !likes.loaded || likes.liked || busy;
+  const buttonLabel = busy ? "Registrando..." : likes.liked ? "Curtido" : likes.loaded ? "Curtir" : "Carregando...";
+  const countLabel = likes.loaded
+    ? `${likes.total} ${likes.total === 1 ? "curtida" : "curtidas"}`
+    : "Curtidas indisponíveis";
+
+  return `
+    <div class="notice-reactions">
+      <button
+        class="notice-like ${likes.liked ? "liked" : ""}"
+        type="button"
+        data-notice-like="${escapeHtml(noticeId)}"
+        aria-pressed="${likes.liked ? "true" : "false"}"
+        ${disabled ? "disabled" : ""}
+      ><span aria-hidden="true">👍</span> ${escapeHtml(buttonLabel)}</button>
+      <span class="notice-like-count" aria-live="polite">${escapeHtml(countLabel)}</span>
+    </div>`;
 }
 
 function renderTerritories() {
@@ -1081,6 +1153,9 @@ function renderTerritories() {
   });
   document.querySelectorAll("[data-notice-action]").forEach((button) => {
     button.addEventListener("click", () => handleNoticeAction(button.dataset.noticeAction, button.dataset.id));
+  });
+  document.querySelectorAll("[data-notice-like]").forEach((button) => {
+    button.addEventListener("click", () => likeNotice(button.dataset.noticeLike));
   });
   document.querySelector("#add-territory")?.addEventListener("click", () => openTerritoryDialog());
   bindMainTabs();
@@ -1395,6 +1470,29 @@ function handleNoticeAction(action, id) {
   const notice = findNotice(id);
   if (!notice || action !== "remove") return;
   requestNoticePermission(() => openRemoveNoticeDialog(notice));
+}
+
+async function likeNotice(id) {
+  if (!state.user || !state.congregationId) return showToast("Entre novamente para curtir o aviso.");
+  if (!findNotice(id)) return showToast("Aviso não encontrado.");
+
+  const likes = state.noticeLikes.get(id);
+  if (!likes?.loaded || likes.liked || state.noticeLikeBusy.has(id)) return;
+
+  state.noticeLikeBusy.add(id);
+  renderMainView();
+  try {
+    await setDoc(doc(db, "avisos", id, "curtidas", state.user.uid), {
+      congregacaoId: state.congregationId,
+      curtidoEm: serverTimestamp()
+    });
+    showToast("Curtida registrada.");
+  } catch (error) {
+    showToast(firebaseError(error, "Não foi possível registrar a curtida."));
+  } finally {
+    state.noticeLikeBusy.delete(id);
+    renderMainView();
+  }
 }
 
 function openRemoveNoticeDialog(notice) {
@@ -2010,7 +2108,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=14").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=15").catch(() => {});
   });
 }
 

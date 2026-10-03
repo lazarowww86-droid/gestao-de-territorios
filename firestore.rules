@@ -234,6 +234,31 @@ service cloud.firestore {
         && isAdministratorOf(request.resource.data.congregacaoId);
       allow update, delete: if sameExistingCongregation()
         && isAdministratorOf(resource.data.congregacaoId);
+
+      match /curtidas/{userId} {
+        allow read: if signedIn()
+          && exists(/databases/$(database)/documents/avisos/$(noticeId))
+          && belongsTo(
+            get(/databases/$(database)/documents/avisos/$(noticeId)).data.congregacaoId
+          );
+
+        allow create: if signedIn()
+          && userId == request.auth.uid
+          && exists(/databases/$(database)/documents/avisos/$(noticeId))
+          && belongsTo(
+            get(/databases/$(database)/documents/avisos/$(noticeId)).data.congregacaoId
+          )
+          && request.resource.data.keys().hasOnly([
+            'congregacaoId',
+            'curtidoEm'
+          ])
+          && request.resource.data.congregacaoId
+            == get(/databases/$(database)/documents/avisos/$(noticeId)).data.congregacaoId
+          && request.resource.data.curtidoEm is timestamp;
+
+        // Uma curtida é definitiva: não pode ser alterada nem retirada.
+        allow update, delete: if false;
+      }
     }
   }
 }
