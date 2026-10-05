@@ -1305,6 +1305,7 @@ function openScheduledTerritoryManagement(id) {
   const name = territory.data.nome?.toString() || "Território";
   const finished = territory.data.finalizado === true;
   const partial = territory.data.parcial === true;
+  const observation = territory.data.observacao?.toString().trim() || "";
 
   modalRoot.innerHTML = `
     <dialog class="app-dialog territory-management-dialog">
@@ -1312,6 +1313,8 @@ function openScheduledTerritoryManagement(id) {
         <h2 class="dialog-title">${escapeHtml(name)}</h2>
         <p class="dialog-help">Escolha o que deseja atualizar neste território.</p>
         <div class="territory-management-actions">
+          ${isAdministrator() ? `<button class="btn btn-outlined" type="button" data-scheduled-territory-action="edit">Editar território</button>` : ""}
+          <button class="btn btn-outlined" type="button" data-scheduled-territory-action="observation">${observation ? "Editar observação" : "Adicionar observação"}</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="progress">Registrar progresso</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="clear-progress" ${partial ? "" : "disabled"}>Remover progresso</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="finish" ${finished ? "disabled" : ""}>Finalizar território</button>
@@ -1613,17 +1616,7 @@ function territoryCard(id, data) {
           <h2 class="territory-title">${escapeHtml(name)}</h2>
           ${partial && !finished ? `<span class="partial-pill">PARCIAL</span>` : ""}
         </div>
-        <details class="menu">
-          <summary class="icon-btn" aria-label="Mais opções">⋮</summary>
-          <div class="menu-panel">
-            ${isAdministrator() ? `<button type="button" data-action="edit" data-id="${escapeHtml(id)}">Editar</button>` : ""}
-            <button type="button" data-action="observation" data-id="${escapeHtml(id)}">${observation ? "Editar observação" : "Adicionar observação"}</button>
-            <button type="button" data-action="progress" data-id="${escapeHtml(id)}">Registrar progresso (rua/nº)</button>
-            <button type="button" data-action="clear-progress" data-id="${escapeHtml(id)}" ${partial ? "" : "disabled"}>Remover progresso</button>
-            <button type="button" data-action="finish" data-id="${escapeHtml(id)}" ${finished ? "disabled" : ""}>Finalizar</button>
-            <button type="button" data-action="restart" data-id="${escapeHtml(id)}">Reiniciar</button>
-          </div>
-        </details>
+        <button class="btn btn-outlined territory-card__manage" type="button" data-manage-territory="${escapeHtml(id)}">Gerenciar</button>
       </div>
       <div class="territory-meta">
         <div class="completion-age">${escapeHtml(completionStatus)}</div>
@@ -1647,9 +1640,6 @@ function territoryCard(id, data) {
           <span class="maps-link" title="${escapeHtml(mapsUrl)}">${escapeHtml(mapsUrl)}</span>
           <button class="icon-btn" type="button" data-open-maps="${escapeHtml(mapsUrl)}" aria-label="Abrir no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>
         </div>` : ""}
-      <div class="territory-card__manage-row">
-        <button class="btn btn-outlined" type="button" data-manage-territory="${escapeHtml(id)}">Gerenciar</button>
-      </div>
     </article>`;
 }
 
@@ -2221,7 +2211,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=18").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=19").catch(() => {});
   });
 }
 
