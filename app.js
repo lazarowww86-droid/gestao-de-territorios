@@ -73,6 +73,7 @@ const state = {
   noticeLikes: new Map(),
   noticeLikeStops: new Map(),
   noticeLikeBusy: new Set(),
+  territorySearch: "",
   activeMainTab: "territories",
   activeCongregationTab: "create",
   stopTerritories: null,
@@ -975,7 +976,10 @@ function scheduleTerritories(schedule) {
     return {
       id,
       name: current?.data?.nome?.toString() || saved.nome?.toString() || "Território",
-      mapsUrl: current?.data?.mapsUrl?.toString() || saved.mapsUrl?.toString() || ""
+      mapsUrl: current?.data?.mapsUrl?.toString() || saved.mapsUrl?.toString() || "",
+      finished: current?.data?.finalizado === true,
+      partial: current?.data?.parcial === true,
+      manageable: Boolean(current)
     };
   });
 }
@@ -1134,8 +1138,22 @@ function renderTerritories() {
           </section>
         ${noticesPanel()}
         ${nextScheduleBanner()}
+        ${state.territories.length ? `
+          <section class="territory-search" aria-label="Pesquisar território">
+            <label for="territory-search-input">Pesquisar território</label>
+            <input
+              id="territory-search-input"
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              placeholder="Digite o nome ou número da quadra"
+              value="${escapeHtml(state.territorySearch)}"
+            >
+            <p id="territory-search-summary" class="territory-search__summary" aria-live="polite"></p>
+          </section>` : ""}
         <section id="territory-list" class="territory-list" aria-label="Lista de territórios">
           ${state.territories.length ? cards : `<div class="empty-state"><p>Nenhum território cadastrado</p></div>`}
+          <div id="territory-search-empty" class="empty-state" hidden><p>Nenhum território encontrado.</p></div>
         </section>
       </div>
       ${isAdministrator() ? `<button id="add-territory" class="fab" type="button" aria-label="Adicionar território">＋</button>` : ""}
@@ -1158,6 +1176,9 @@ function renderTerritories() {
     button.addEventListener("click", () => likeNotice(button.dataset.noticeLike));
   });
   document.querySelector("#add-territory")?.addEventListener("click", () => openTerritoryDialog());
+  document.querySelector("#territory-search-input")?.addEventListener("input", (event) => {
+    applyTerritorySearch(event.currentTarget.value);
+  });
   bindMainTabs();
   document.querySelectorAll("[data-open-maps]").forEach((button) => {
     button.addEventListener("click", () => openMaps(button.dataset.openMaps));
@@ -1165,6 +1186,7 @@ function renderTerritories() {
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleTerritoryAction(button.dataset.action, button.dataset.id));
   });
+  applyTerritorySearch(state.territorySearch);
 }
 
 function renderSchedules() {
@@ -1217,6 +1239,9 @@ function renderSchedules() {
   document.querySelectorAll("[data-open-maps]").forEach((button) => {
     button.addEventListener("click", () => openMaps(button.dataset.openMaps));
   });
+  document.querySelectorAll("[data-manage-scheduled-territory]").forEach((button) => {
+    button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageScheduledTerritory));
+  });
 }
 
 function scheduleCard(schedule, previous = false) {
@@ -1247,8 +1272,14 @@ function scheduleCard(schedule, previous = false) {
       <div class="scheduled-territories">
         ${territories.map((territory) => `
           <div class="scheduled-territory">
-            <span>${escapeHtml(territory.name)}</span>
-            ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps">⌖</button>` : ""}
+            <div class="scheduled-territory__info">
+              <span>${escapeHtml(territory.name)}</span>
+              ${territory.manageable ? `<small class="scheduled-territory__status ${territory.finished ? "finished" : territory.partial ? "partial" : "pending"}">${territory.finished ? "Finalizado" : territory.partial ? "Parcial" : "Em andamento"}</small>` : ""}
+            </div>
+            <div class="scheduled-territory__actions">
+              ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps">⌖</button>` : ""}
+              ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-scheduled-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
+            </div>
           </div>`).join("")}
       </div>
       ${departureLocation ? `
@@ -1262,6 +1293,52 @@ function scheduleCard(schedule, previous = false) {
 
 function findSchedule(id) {
   return state.schedules.find((schedule) => schedule.id === id);
+}
+
+function openScheduledTerritoryManagement(id) {
+  const territory = findTerritory(id);
+  if (!territory) return showToast("Território não encontrado.");
+
+  const name = territory.data.nome?.toString() || "Território";
+  const finished = territory.data.finalizado === true;
+  const partial = territory.data.parcial === true;
+
+  modalRoot.innerHTML = `
+    <dialog class="app-dialog territory-management-dialog">
+      <div class="dialog-form">
+        <h2 class="dialog-title">${escapeHtml(name)}</h2>
+        <p class="dialog-help">Escolha o que deseja atualizar neste território.</p>
+        <div class="territory-management-actions">
+          <button class="btn btn-outlined" type="button" data-scheduled-territory-action="progress">Registrar progresso</button>
+          <button class="btn btn-outlined" type="button" data-scheduled-territory-action="clear-progress" ${partial ? "" : "disabled"}>Remover progresso</button>
+          <button class="btn btn-outlined" type="button" data-scheduled-territory-action="finish" ${finished ? "disabled" : ""}>Finalizar território</button>
+          <button class="btn btn-outlined" type="button" data-scheduled-territory-action="restart">Reiniciar território</button>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-tonal close-territory-management" type="button">Fechar</button>
+        </div>
+      </div>
+    </dialog>`;
+
+  const dialog = modalRoot.querySelector("dialog");
+  const close = () => {
+    dialog.close();
+    modalRoot.innerHTML = "";
+  };
+
+  dialog.querySelector(".close-territory-management").addEventListener("click", close);
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    close();
+  });
+  dialog.querySelectorAll("[data-scheduled-territory-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.scheduledTerritoryAction;
+      close();
+      await handleTerritoryAction(action, id);
+    });
+  });
+  dialog.showModal();
 }
 
 function handleScheduleAction(action, id) {
@@ -1527,7 +1604,7 @@ function territoryCard(id, data) {
   const completionStatus = territoryCompletionStatus(data);
 
   return `
-    <article class="territory-card ${finished ? "finished" : "pending"}">
+    <article class="territory-card ${finished ? "finished" : "pending"}" data-territory-search="${escapeHtml(normalizeTerritorySearch(name))}">
       <div class="territory-card__header">
         <div class="territory-title-wrap">
           <h2 class="territory-title">${escapeHtml(name)}</h2>
@@ -1568,6 +1645,36 @@ function territoryCard(id, data) {
           <button class="icon-btn" type="button" data-open-maps="${escapeHtml(mapsUrl)}" aria-label="Abrir no Maps" title="Abrir no Maps">⌖</button>
         </div>` : ""}
     </article>`;
+}
+
+function normalizeTerritorySearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
+function applyTerritorySearch(value) {
+  state.territorySearch = String(value || "");
+  const query = normalizeTerritorySearch(state.territorySearch);
+  const cards = Array.from(document.querySelectorAll("#territory-list [data-territory-search]"));
+  const empty = document.querySelector("#territory-search-empty");
+  const summary = document.querySelector("#territory-search-summary");
+  let visible = 0;
+
+  cards.forEach((card) => {
+    const matches = !query || card.dataset.territorySearch.includes(query);
+    card.hidden = !matches;
+    if (matches) visible += 1;
+  });
+
+  if (empty) empty.hidden = visible > 0 || cards.length === 0;
+  if (summary) {
+    summary.textContent = query
+      ? `${visible} ${visible === 1 ? "território encontrado" : "territórios encontrados"}`
+      : `${cards.length} ${cards.length === 1 ? "território cadastrado" : "territórios cadastrados"}`;
+  }
 }
 
 function findTerritory(id) {
@@ -2108,7 +2215,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=15").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=16").catch(() => {});
   });
 }
 

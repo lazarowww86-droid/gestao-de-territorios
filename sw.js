@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v19-notice-likes";
+const CACHE_NAME = "gestao-territorios-v20-search-schedule-management";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=19",
-  "./app.js?v=19",
+  "./styles.css?v=20",
+  "./app.js?v=20",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
