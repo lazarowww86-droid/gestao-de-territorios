@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v20-search-schedule-management";
+const CACHE_NAME = "gestao-territorios-v22-map-icon";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20",
-  "./app.js?v=20",
+  "./styles.css?v=22",
+  "./app.js?v=22",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

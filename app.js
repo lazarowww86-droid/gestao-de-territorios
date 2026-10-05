@@ -1186,6 +1186,9 @@ function renderTerritories() {
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleTerritoryAction(button.dataset.action, button.dataset.id));
   });
+  document.querySelectorAll("[data-manage-territory]").forEach((button) => {
+    button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageTerritory));
+  });
   applyTerritorySearch(state.territorySearch);
 }
 
@@ -1277,7 +1280,7 @@ function scheduleCard(schedule, previous = false) {
               ${territory.manageable ? `<small class="scheduled-territory__status ${territory.finished ? "finished" : territory.partial ? "partial" : "pending"}">${territory.finished ? "Finalizado" : territory.partial ? "Parcial" : "Em andamento"}</small>` : ""}
             </div>
             <div class="scheduled-territory__actions">
-              ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps">⌖</button>` : ""}
+              ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
               ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-scheduled-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
             </div>
           </div>`).join("")}
@@ -1642,8 +1645,11 @@ function territoryCard(id, data) {
       ${mapsUrl ? `
         <div class="maps-row">
           <span class="maps-link" title="${escapeHtml(mapsUrl)}">${escapeHtml(mapsUrl)}</span>
-          <button class="icon-btn" type="button" data-open-maps="${escapeHtml(mapsUrl)}" aria-label="Abrir no Maps" title="Abrir no Maps">⌖</button>
+          <button class="icon-btn" type="button" data-open-maps="${escapeHtml(mapsUrl)}" aria-label="Abrir no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>
         </div>` : ""}
+      <div class="territory-card__manage-row">
+        <button class="btn btn-outlined" type="button" data-manage-territory="${escapeHtml(id)}">Gerenciar</button>
+      </div>
     </article>`;
 }
 
@@ -2215,7 +2221,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=16").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=18").catch(() => {});
   });
 }
 
