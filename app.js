@@ -74,6 +74,7 @@ const state = {
   noticeLikeStops: new Map(),
   noticeLikeBusy: new Set(),
   territorySearch: "",
+  territoryFilter: "all",
   activeMainTab: "territories",
   activeCongregationTab: "create",
   stopTerritories: null,
@@ -942,6 +943,20 @@ function upcomingSchedules() {
   return state.schedules.filter((schedule) => String(schedule.data.data || "") >= today);
 }
 
+function nextScheduleForTerritory(id) {
+  return upcomingSchedules().find((schedule) => {
+    const ids = Array.isArray(schedule.data.territorioIds) ? schedule.data.territorioIds : [];
+    const savedTerritories = Array.isArray(schedule.data.territorios) ? schedule.data.territorios : [];
+    return ids.includes(id) || savedTerritories.some((territory) => territory?.id === id);
+  }) || null;
+}
+
+function territoryStatusKey(data) {
+  if (data.finalizado === true) return "finished";
+  if (data.parcial === true) return "partial";
+  return "in-progress";
+}
+
 function renderMainTabs(active) {
   return `
     <nav class="tabs main-tabs" aria-label="Áreas do aplicativo">
@@ -1114,6 +1129,10 @@ function renderTerritories() {
   const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
   const congregationCode = isAdministrator() ? state.congregationCode : "";
   const cards = state.territories.map(({ id, data }) => territoryCard(id, data)).join("");
+  const filterCounts = state.territories.reduce((counts, territory) => {
+    counts[territoryStatusKey(territory.data)] += 1;
+    return counts;
+  }, { "in-progress": 0, partial: 0, finished: 0 });
 
   appElement.innerHTML = `
     <section class="page-shell">
@@ -1149,6 +1168,12 @@ function renderTerritories() {
               placeholder="Digite o nome ou número da quadra"
               value="${escapeHtml(state.territorySearch)}"
             >
+            <div class="territory-filters" aria-label="Filtrar territórios por status">
+              <button type="button" data-territory-filter="all" aria-pressed="${state.territoryFilter === "all"}">Todos <span>${state.territories.length}</span></button>
+              <button type="button" data-territory-filter="in-progress" aria-pressed="${state.territoryFilter === "in-progress"}">Em andamento <span>${filterCounts["in-progress"]}</span></button>
+              <button type="button" data-territory-filter="partial" aria-pressed="${state.territoryFilter === "partial"}">Parciais <span>${filterCounts.partial}</span></button>
+              <button type="button" data-territory-filter="finished" aria-pressed="${state.territoryFilter === "finished"}">Finalizados <span>${filterCounts.finished}</span></button>
+            </div>
             <p id="territory-search-summary" class="territory-search__summary" aria-live="polite"></p>
           </section>` : ""}
         <section id="territory-list" class="territory-list" aria-label="Lista de territórios">
@@ -1178,6 +1203,15 @@ function renderTerritories() {
   document.querySelector("#add-territory")?.addEventListener("click", () => openTerritoryDialog());
   document.querySelector("#territory-search-input")?.addEventListener("input", (event) => {
     applyTerritorySearch(event.currentTarget.value);
+  });
+  document.querySelectorAll("[data-territory-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.territoryFilter = button.dataset.territoryFilter;
+      document.querySelectorAll("[data-territory-filter]").forEach((item) => {
+        item.setAttribute("aria-pressed", String(item === button));
+      });
+      applyTerritorySearch(state.territorySearch);
+    });
   });
   bindMainTabs();
   document.querySelectorAll("[data-open-maps]").forEach((button) => {
@@ -1608,9 +1642,11 @@ function territoryCard(id, data) {
   const observation = data.observacao?.toString().trim() || "";
   const observationBy = data.observacaoAtualizadaPor?.toString() || "";
   const completionStatus = territoryCompletionStatus(data);
+  const statusKey = territoryStatusKey(data);
+  const nextSchedule = nextScheduleForTerritory(id);
 
   return `
-    <article class="territory-card ${finished ? "finished" : "pending"}" data-territory-search="${escapeHtml(normalizeTerritorySearch(name))}">
+    <article class="territory-card ${finished ? "finished" : "pending"}" data-territory-search="${escapeHtml(normalizeTerritorySearch(name))}" data-territory-status="${statusKey}">
       <div class="territory-card__header">
         <div class="territory-title-wrap">
           <h2 class="territory-title">${escapeHtml(name)}</h2>
@@ -1629,6 +1665,11 @@ function territoryCard(id, data) {
             <div class="progress-by">Registrado por: ${escapeHtml(progressBy || "-")} • ${escapeHtml(formatTimestamp(data.progressoEm))}</div>
           </div>` : ""}
       </div>
+      ${nextSchedule ? `
+        <div class="territory-next-schedule">
+          <span aria-hidden="true">📅</span>
+          <span><strong>Programado:</strong> ${escapeHtml(formatScheduleDate(nextSchedule.data.data))}${nextSchedule.data.data === todayDateKey() ? " — Hoje" : ""}</span>
+        </div>` : ""}
       ${observation ? `
         <div class="territory-observation">
           <strong>Observação</strong>
@@ -1654,20 +1695,23 @@ function normalizeTerritorySearch(value) {
 function applyTerritorySearch(value) {
   state.territorySearch = String(value || "");
   const query = normalizeTerritorySearch(state.territorySearch);
+  const filter = state.territoryFilter || "all";
   const cards = Array.from(document.querySelectorAll("#territory-list [data-territory-search]"));
   const empty = document.querySelector("#territory-search-empty");
   const summary = document.querySelector("#territory-search-summary");
   let visible = 0;
 
   cards.forEach((card) => {
-    const matches = !query || card.dataset.territorySearch.includes(query);
+    const matchesSearch = !query || card.dataset.territorySearch.includes(query);
+    const matchesStatus = filter === "all" || card.dataset.territoryStatus === filter;
+    const matches = matchesSearch && matchesStatus;
     card.hidden = !matches;
     if (matches) visible += 1;
   });
 
   if (empty) empty.hidden = visible > 0 || cards.length === 0;
   if (summary) {
-    summary.textContent = query
+    summary.textContent = query || filter !== "all"
       ? `${visible} ${visible === 1 ? "território encontrado" : "territórios encontrados"}`
       : `${cards.length} ${cards.length === 1 ? "território cadastrado" : "territórios cadastrados"}`;
   }
@@ -2211,7 +2255,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=19").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=20").catch(() => {});
   });
 }
 
