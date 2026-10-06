@@ -195,7 +195,7 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   margin: -1px 0 1.25rem;
   border-bottom: 1px solid var(--outline-soft);
 }
@@ -451,6 +451,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .scheduled-territory__status.finished { color: var(--success); }
 .scheduled-territory__status.partial { color: var(--partial); }
 .scheduled-territory__status.pending { color: var(--muted); }
+.scheduled-territory__departure { color: var(--primary-dark); font-size: 0.78rem; line-height: 1.35; }
 .scheduled-territory__actions { display: flex; align-items: center; gap: 0.35rem; flex: 0 0 auto; }
 .map-icon { display: inline-block; font-size: 1.15rem; line-height: 1; }
 .scheduled-territory__manage { min-height: 2.25rem; padding: 0.35rem 0.65rem; font-size: 0.78rem; }
@@ -485,22 +486,32 @@ button { -webkit-tap-highlight-color: transparent; }
   overflow-y: auto;
   padding: 0.15rem;
 }
+.territory-choice-card {
+  overflow: hidden;
+  background: var(--surface-variant);
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+}
+.territory-choice-card:has(input[name="territoryIds"]:checked) { background: var(--primary-container); border-color: rgba(103, 80, 164, 0.3); }
 .territory-choice {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   min-height: 3.35rem;
   padding: 0.6rem 0.75rem;
-  background: var(--surface-variant);
-  border: 1px solid transparent;
-  border-radius: 0.75rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
 }
-.territory-choice:has(input:checked) { background: var(--primary-container); border-color: rgba(103, 80, 164, 0.3); }
+.territory-choice:has(input:checked) { background: transparent; }
 .territory-choice input { width: 1.2rem; height: 1.2rem; accent-color: var(--primary); }
 .territory-choice span { display: grid; gap: 0.15rem; min-width: 0; }
 .territory-choice strong { overflow-wrap: anywhere; }
 .territory-choice small { color: var(--muted); font-size: 0.8rem; }
+.territory-assignment-fields { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: 0.65rem; padding: 0 0.75rem 0.75rem 2.7rem; }
+.territory-assignment-fields .field label { color: var(--primary-dark); font-size: 0.78rem; font-weight: 700; }
+.territory-assignment-fields .field input { min-height: 2.75rem; padding: 0.55rem 0.7rem; background: rgba(255, 255, 255, 0.72); }
 
 .territory-card {
   position: relative;
@@ -537,6 +548,43 @@ button { -webkit-tap-highlight-color: transparent; }
 .progress-by { color: var(--muted); font-size: 0.82rem; }
 .territory-next-schedule { display: flex; align-items: flex-start; gap: 0.45rem; margin-top: 0.75rem; padding: 0.6rem 0.7rem; color: var(--primary-dark); background: rgba(255, 255, 255, 0.66); border: 1px solid rgba(103, 80, 164, 0.2); border-radius: 0.75rem; font-size: 0.82rem; line-height: 1.4; }
 .territory-next-schedule strong { font-weight: 800; }
+.territory-next-schedule > span:last-child { display: grid; gap: 0.2rem; }
+.territory-next-schedule small { color: var(--muted); font-size: 0.78rem; }
+
+.coverage-card,
+.map-panel,
+.map-territory-list {
+  padding: 1rem;
+  background: var(--surface-strong);
+  border: 1px solid var(--outline-soft);
+  border-radius: 1rem;
+}
+.map-content { display: grid; gap: 1rem; }
+.coverage-card__heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.coverage-card__heading h2 { margin: 0.15rem 0 0; font-size: 1.35rem; }
+.coverage-card__heading > strong { color: var(--primary-dark); font-size: 1.2rem; }
+.coverage-bar { height: 0.7rem; margin-top: 0.85rem; overflow: hidden; background: var(--surface-variant); border-radius: 999px; }
+.coverage-bar span { display: block; height: 100%; background: var(--success); border-radius: inherit; transition: width 180ms ease; }
+.map-summary { display: flex; flex-wrap: wrap; gap: 0.45rem 0.9rem; margin-top: 0.7rem; color: var(--muted); font-size: 0.82rem; }
+.map-summary span::before { content: ""; display: inline-block; width: 0.55rem; height: 0.55rem; margin-right: 0.35rem; border-radius: 50%; }
+.map-summary .finished::before, .map-legend i.finished { background: #2e7d32; }
+.map-summary .partial::before, .map-legend i.partial { background: #b26a00; }
+.map-summary .pending::before, .map-legend i.pending { background: #b3261e; }
+.map-panel .section-heading h2 { margin: 0.15rem 0 0; }
+.map-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; margin: 0.75rem 0; color: var(--muted); font-size: 0.8rem; }
+.map-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.map-legend i { width: 0.65rem; height: 0.65rem; border-radius: 50%; }
+.territory-map { width: 100%; height: min(60vh, 32rem); min-height: 23rem; overflow: hidden; border: 1px solid var(--outline-soft); border-radius: 0.85rem; }
+.map-load-message, .map-note { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.45; }
+.map-territory-list { display: grid; gap: 0.45rem; }
+.map-territory-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.65rem 0.25rem; border-bottom: 1px solid var(--outline-soft); }
+.map-territory-row:last-child { border-bottom: 0; }
+.map-territory-row > span { display: grid; gap: 0.15rem; min-width: 0; }
+.map-territory-row strong { overflow-wrap: anywhere; }
+.map-territory-row small { color: var(--muted); }
+.map-territory-row .btn { flex: 0 0 auto; min-height: 2.3rem; padding: 0.4rem 0.75rem; font-size: 0.78rem; }
+.leaflet-popup-content { line-height: 1.45; }
+.leaflet-popup-content a { color: var(--primary-dark); font-weight: 700; }
 
 .territory-observation { margin-top: 0.7rem; padding: 0.75rem; background: rgba(255, 255, 255, 0.58); border: 1px solid rgba(98, 91, 113, 0.16); border-radius: 0.75rem; }
 .territory-observation strong { font-size: 0.86rem; }
@@ -683,6 +731,10 @@ button { -webkit-tap-highlight-color: transparent; }
   .notice-footer { align-items: flex-start; flex-direction: column; }
   .button-row { flex-direction: column; align-items: center; }
   .button-row .btn { min-width: 9rem; }
+  .tab { font-size: 0.86rem; }
+  .territory-assignment-fields { grid-template-columns: 1fr; padding-left: 0.75rem; }
+  .territory-time-field { width: min(100%, 12rem); }
+  .territory-map { min-height: 26rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

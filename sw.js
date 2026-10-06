@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v24-filters-next-schedule";
+const CACHE_NAME = "gestao-territorios-v25-map-departures";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=24",
-  "./app.js?v=24",
+  "./styles.css?v=25",
+  "./app.js?v=25",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

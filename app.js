@@ -41,6 +41,83 @@ const firebaseConfig = {
 
 const PUSH_API_URL = "https://gestao-territorios-notificacoes.lazarowww86.workers.dev";
 
+// Coordenadas obtidas dos links já cadastrados. Os links continuam sendo a
+// fonte oficial para abrir o Google Maps; esta tabela serve somente para
+// posicionar os marcadores no mapa geral, sem alterar nenhum dado do Firestore.
+const TERRITORY_MAP_COORDINATES = new Map([
+  ["https://maps.app.goo.gl/U5kcgveaSfZyHvL16", [-23.446066, -46.406097]],
+  ["https://maps.app.goo.gl/m2RFSspov3NvR2kp6", [-23.4449457, -46.4052718]],
+  ["https://maps.app.goo.gl/PUZkAbk4eEG4yPfo6", [-23.4456754, -46.402264]],
+  ["https://maps.app.goo.gl/iEDJtNf462MiJ4aB7", [-23.4453947, -46.4050471]],
+  ["https://maps.app.goo.gl/mVfL3ZAHvaeudjbp6", [-23.4459513, -46.4036941]],
+  ["https://maps.app.goo.gl/teGwQUVpduUcUA7w8", [-23.4503972, -46.4054552]],
+  ["https://maps.app.goo.gl/ShFc3FTppaLmYHV47", [-23.4463498, -46.4058418]],
+  ["https://maps.app.goo.gl/HjjPaaBxGHgMeyWJ9", [-23.4467813, -46.4074109]],
+  ["https://maps.app.goo.gl/Xn5twcMPXacE89Qp9", [-23.4396156, -46.410963]],
+  ["https://maps.app.goo.gl/hxr7KNV8gEHP6hmc9", [-23.4428637, -46.4111784]],
+  ["https://maps.app.goo.gl/CrC9VZv6WWxxjDSg8", [-23.4420528, -46.4107806]],
+  ["https://maps.app.goo.gl/3U977q7o3dhkddM56", [-23.4416724, -46.410785]],
+  ["https://maps.app.goo.gl/X1VWrf7L3G9Rszgf9", [-23.4460795, -46.4067329]],
+  ["https://maps.app.goo.gl/xR9HSiYQ5owr3ANH8", [-23.4429388, -46.4117423]],
+  ["https://maps.app.goo.gl/pXP5mzZekrLeWkRh9", [-23.4428289, -46.4105514]],
+  ["https://maps.app.goo.gl/XqNGeCVayjYTbzE69", [-23.4419344, -46.4107739]],
+  ["https://maps.app.goo.gl/6Kf6zTKQejUUwGj18", [-23.442734, -46.4099423]],
+  ["https://maps.app.goo.gl/1wXK8RrYyCefvm1q7", [-23.4427546, -46.4093175]],
+  ["https://maps.app.goo.gl/BUwj3ZnjLsxdSJZC7", [-23.4426633, -46.4080081]],
+  ["https://maps.app.goo.gl/Q77eTUg4DxJmE6kx5", [-23.4429388, -46.4117423]],
+  ["https://maps.app.goo.gl/Z6ebWGMkgrHg13od6", [-23.4426913, -46.4085947]],
+  ["https://maps.app.goo.gl/5yELp6cVLJ3nb78F8", [-23.448738, -46.4042115]],
+  ["https://maps.app.goo.gl/zrEy6jaik1w9F86bA", [-23.4498277, -46.4044668]],
+  ["https://maps.app.goo.gl/KS4FxW7eu9ioPLDF9", [-23.4502513, -46.4042614]],
+  ["https://maps.app.goo.gl/1oAfbD4u1m7B5872A", [-23.4498509, -46.4024523]],
+  ["https://maps.app.goo.gl/ZNzoqtZs63pG3mPa8", [-23.4487916, -46.4039427]],
+  ["https://maps.app.goo.gl/oK6HgnHEsahdnTU58", [-23.448738, -46.4042115]],
+  ["https://maps.app.goo.gl/tgdgHXh9EebTVfk7A", [-23.4478421, -46.4044968]],
+  ["https://maps.app.goo.gl/HsStTpvF4cgdPcwQ7", [-23.4486318, -46.4063432]],
+  ["https://maps.app.goo.gl/Mc9SjioSYAEstfF78", [-23.4463226, -46.407134]],
+  ["https://maps.app.goo.gl/njLi6k4CbVdHFR9e7", [-23.446066, -46.406097]],
+  ["https://maps.app.goo.gl/rFZVPwyBHws9WL9H8", [-23.4473813, -46.4058429]],
+  ["https://maps.app.goo.gl/2jt6vndhLp576hpC9", [-23.4471578, -46.40542]],
+  ["https://maps.app.goo.gl/RnktByY3p9M3fiyBA", [-23.4468371, -46.4049829]],
+  ["https://maps.app.goo.gl/b8QykWeJAchsN7NA9", [-23.4477945, -46.4044013]],
+  ["https://maps.app.goo.gl/P9PZqAiaeuzcKSeT8", [-23.445471, -46.4048729]],
+  ["https://maps.app.goo.gl/vw2BYjvsG9pY7C68A", [-23.4475498, -46.403765]],
+  ["https://maps.app.goo.gl/CcecWbccbztR4SXN6", [-23.4481766, -46.402547]],
+  ["https://maps.app.goo.gl/rxQrayHWoKgkF9by6", [-23.4472034, -46.4033295]],
+  ["https://maps.app.goo.gl/hFY8chX8qMpLSMPVA", [-23.4465869, -46.4031915]],
+  ["https://maps.app.goo.gl/NYv9aNxaPRk8QWrw6", [-23.4450966, -46.4038233]],
+  ["https://maps.app.goo.gl/x9VdrgiaMM2LRm97A", [-23.445269, -46.4043269]],
+  ["https://maps.app.goo.gl/fFyTojrvGEQmtQdP7", [-23.4462028, -46.4035039]],
+  ["https://maps.app.goo.gl/zzersbdDvwkLwosC8", [-23.4465623, -46.4030152]],
+  ["https://maps.app.goo.gl/WijfWiuFDXgXAVJQA", [-23.4458288, -46.4024951]],
+  ["https://maps.app.goo.gl/qi9tjvMtHAFt342dA", [-23.4422842, -46.4021693]],
+  ["https://maps.app.goo.gl/hEkPvxGbQzsfeSgS8", [-23.4437745, -46.4015749]],
+  ["https://maps.app.goo.gl/7BKEAh8jaBVepeEK7", [-23.4431664, -46.4014363]],
+  ["https://maps.app.goo.gl/kk8gwUxr6Mgfi9h86", [-23.4432776, -46.4026754]],
+  ["https://maps.app.goo.gl/yHjq5n9w3bsmgHi6A", [-23.4431837, -46.4040756]],
+  ["https://maps.app.goo.gl/xRNp8kJ98r68fJKG8", [-23.4428947, -46.4036503]],
+  ["https://maps.app.goo.gl/THoDQ2ApXngnViwb7", [-23.442659, -46.4031063]],
+  ["https://maps.app.goo.gl/2EiabvqsxaHDsrm2A", [-23.4426683, -46.4030461]],
+  ["https://maps.app.goo.gl/ketjc8nuUpmWCSx9A", [-23.4420015, -46.4022859]],
+  ["https://maps.app.goo.gl/AXmjYjK8wDyJEnSq5", [-23.4427961, -46.4038954]],
+  ["https://maps.app.goo.gl/1mVe38ArnafUNatEA", [-23.4430762, -46.4043535]],
+  ["https://maps.app.goo.gl/duQmuckADWoiLJoW8", [-23.4432133, -46.4048699]],
+  ["https://maps.app.goo.gl/N2mugyUB8vf1uSeK8", [-23.4432834, -46.4053551]],
+  ["https://maps.app.goo.gl/VbfquxRERuezWBhh7", [-23.4436285, -46.4058322]],
+  ["https://maps.app.goo.gl/41yyQumZYKZi7Rcw6", [-23.4438363, -46.4066241]],
+  ["https://maps.app.goo.gl/cDMYF36fDDhcRE8YA", [-23.4441601, -46.4074056]],
+  ["https://maps.app.goo.gl/CNVt9oS9HRJhok569", [-23.4441048, -46.4057442]],
+  ["https://maps.app.goo.gl/2HSYRRRaW5ebUudS8", [-23.4445021, -46.4054494]],
+  ["https://maps.app.goo.gl/tDiKqqGGD3HuxJQJ6", [-23.4446755, -46.4074081]],
+  ["https://maps.app.goo.gl/YGLYWM26zs2bjCB3A", [-23.4451809, -46.4074601]],
+  ["https://maps.app.goo.gl/PAAZ5ujfwBhXT4Qy6", [-23.4455356, -46.4069207]],
+  ["https://maps.app.goo.gl/XQL45AycmWVjw8jp8", [-23.445507, -46.4053413]],
+  ["https://maps.app.goo.gl/Er9ytwq2tSqMkp8HA", [-23.4442171, -46.4079821]],
+  ["https://maps.app.goo.gl/2V3kyDPvyHMGmT43A", [-23.4461285, -46.4079957]],
+  ["https://maps.app.goo.gl/gx2Jp5KPK2xtK9JF8", [-23.4481065, -46.4078228]],
+  ["https://maps.app.goo.gl/xFBhGShGK8ctNRyE6", [-23.4494431, -46.4075944]]
+]);
+
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 auth.languageCode = "pt-BR";
@@ -91,6 +168,7 @@ const state = {
 };
 
 let oneSignalReadyPromise = null;
+let territoryMapInstance = null;
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -962,6 +1040,7 @@ function renderMainTabs(active) {
     <nav class="tabs main-tabs" aria-label="Áreas do aplicativo">
       <button class="tab main-tab" type="button" data-main-tab="territories" aria-selected="${active === "territories"}">Territórios</button>
       <button class="tab main-tab" type="button" data-main-tab="schedules" aria-selected="${active === "schedules"}">Programação</button>
+      <button class="tab main-tab" type="button" data-main-tab="map" aria-selected="${active === "map"}">Mapa geral</button>
     </nav>`;
 }
 
@@ -975,8 +1054,16 @@ function bindMainTabs() {
 }
 
 function renderMainView() {
+  if (territoryMapInstance) {
+    territoryMapInstance.remove();
+    territoryMapInstance = null;
+  }
   if (state.activeMainTab === "schedules") {
     renderSchedules();
+    return;
+  }
+  if (state.activeMainTab === "map") {
+    renderMapView();
     return;
   }
   renderTerritories();
@@ -992,11 +1079,138 @@ function scheduleTerritories(schedule) {
       id,
       name: current?.data?.nome?.toString() || saved.nome?.toString() || "Território",
       mapsUrl: current?.data?.mapsUrl?.toString() || saved.mapsUrl?.toString() || "",
+      departureLocation: saved.localSaida?.toString().trim() || "",
+      departureTime: saved.horarioSaida?.toString().trim() || "",
       finished: current?.data?.finalizado === true,
       partial: current?.data?.parcial === true,
       manageable: Boolean(current)
     };
   });
+}
+
+function normalizedMapsUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    return `${url.origin}${url.pathname}`.replace(/\/$/, "");
+  } catch {
+    return String(value || "").trim().split(/[?#]/)[0].replace(/\/$/, "");
+  }
+}
+
+function territoryCoordinates(mapsUrl) {
+  const raw = String(mapsUrl || "");
+  const embedded = decodeURIComponent(raw).match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (embedded) return [Number(embedded[1]), Number(embedded[2])];
+  return TERRITORY_MAP_COORDINATES.get(normalizedMapsUrl(raw)) || null;
+}
+
+function territoryStatusLabel(data) {
+  if (data.finalizado === true) return "Finalizado";
+  if (data.parcial === true) return "Parcial";
+  return "Em andamento";
+}
+
+function renderMapView() {
+  const total = state.territories.length;
+  const completed = state.territories.filter((territory) => territory.data.finalizado === true).length;
+  const partial = state.territories.filter((territory) => territory.data.parcial === true && territory.data.finalizado !== true).length;
+  const inProgress = Math.max(total - completed - partial, 0);
+  const coverage = total ? Math.round((completed / total) * 100) : 0;
+  const positioned = state.territories.filter((territory) => territoryCoordinates(territory.data.mapsUrl)).length;
+
+  appElement.innerHTML = `
+    <section class="page-shell">
+      <header class="top-app-bar"><h1>Mapa geral</h1></header>
+      ${renderMainTabs("map")}
+      <div class="content map-content">
+        <section class="coverage-card" aria-labelledby="coverage-title">
+          <div class="coverage-card__heading">
+            <div><p class="eyebrow">COBERTURA DA CONGREGAÇÃO</p><h2 id="coverage-title">${coverage}% concluído</h2></div>
+            <strong>${completed}/${total}</strong>
+          </div>
+          <div class="coverage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${coverage}"><span style="width:${coverage}%"></span></div>
+          <div class="map-summary">
+            <span class="finished">${completed} finalizados</span>
+            <span class="partial">${partial} parciais</span>
+            <span class="pending">${inProgress} em andamento</span>
+          </div>
+        </section>
+        <section class="map-panel" aria-labelledby="territory-map-title">
+          <div class="section-heading"><div><p class="eyebrow">VISÃO GERAL</p><h2 id="territory-map-title">Territórios no mapa</h2></div></div>
+          <div class="map-legend" aria-label="Legenda do mapa">
+            <span><i class="finished"></i> Finalizado</span><span><i class="partial"></i> Parcial</span><span><i class="pending"></i> Em andamento</span>
+          </div>
+          <div id="territory-map" class="territory-map" aria-label="Mapa dos territórios"></div>
+          <p id="map-load-message" class="map-load-message" hidden></p>
+          ${positioned < total ? `<p class="map-note">${total - positioned} ${total - positioned === 1 ? "território permanece" : "territórios permanecem"} disponível na lista abaixo porque o link atual não informa uma posição no mapa.</p>` : ""}
+        </section>
+        <section class="map-territory-list" aria-label="Todos os territórios">
+          ${state.territories.map(({ data }) => {
+            const name = data.nome?.toString() || "Território";
+            const mapsUrl = data.mapsUrl?.toString() || "";
+            return `<div class="map-territory-row"><span><strong>${escapeHtml(name)}</strong><small>${escapeHtml(territoryStatusLabel(data))}</small></span>${mapsUrl ? `<button class="btn btn-outlined" type="button" data-open-maps="${escapeHtml(mapsUrl)}">Abrir mapa</button>` : ""}</div>`;
+          }).join("") || `<div class="empty-state"><p>Nenhum território cadastrado.</p></div>`}
+        </section>
+      </div>
+    </section>`;
+
+  bindMainTabs();
+  document.querySelectorAll("[data-open-maps]").forEach((button) => {
+    button.addEventListener("click", () => openMaps(button.dataset.openMaps));
+  });
+  initializeTerritoryMap();
+}
+
+function initializeTerritoryMap() {
+  const mapElement = document.querySelector("#territory-map");
+  const message = document.querySelector("#map-load-message");
+  const Leaflet = window.L;
+  if (!mapElement || !Leaflet) {
+    if (mapElement) mapElement.hidden = true;
+    if (message) {
+      message.hidden = false;
+      message.textContent = "O mapa não carregou. Os botões abaixo continuam abrindo todos os territórios normalmente.";
+    }
+    return;
+  }
+
+  const mapped = state.territories
+    .map((territory) => ({ territory, coordinates: territoryCoordinates(territory.data.mapsUrl) }))
+    .filter((item) => item.coordinates);
+  if (!mapped.length) {
+    mapElement.hidden = true;
+    if (message) {
+      message.hidden = false;
+      message.textContent = "Ainda não há links com posição disponível para montar o mapa geral.";
+    }
+    return;
+  }
+
+  territoryMapInstance = Leaflet.map(mapElement, { scrollWheelZoom: false });
+  Leaflet.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(territoryMapInstance);
+
+  const colors = { finished: "#2e7d32", partial: "#b26a00", "in-progress": "#b3261e" };
+  const bounds = [];
+  mapped.forEach(({ territory, coordinates }) => {
+    const name = territory.data.nome?.toString() || "Território";
+    const status = territoryStatusKey(territory.data);
+    const mapsUrl = territory.data.mapsUrl?.toString() || "";
+    const marker = Leaflet.circleMarker(coordinates, {
+      radius: 8,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: colors[status],
+      fillOpacity: 0.95
+    }).addTo(territoryMapInstance);
+    marker.bindTooltip(name, { direction: "top", offset: [0, -7] });
+    marker.bindPopup(`<strong>${escapeHtml(name)}</strong><br><span>${escapeHtml(territoryStatusLabel(territory.data))}</span>${mapsUrl ? `<br><a href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener">Abrir no Google Maps</a>` : ""}`);
+    bounds.push(coordinates);
+  });
+  territoryMapInstance.fitBounds(bounds, { padding: [24, 24], maxZoom: 16 });
+  window.setTimeout(() => territoryMapInstance?.invalidateSize(), 0);
 }
 
 function nextScheduleBanner() {
@@ -1312,6 +1526,7 @@ function scheduleCard(schedule, previous = false) {
             <div class="scheduled-territory__info">
               <span>${escapeHtml(territory.name)}</span>
               ${territory.manageable ? `<small class="scheduled-territory__status ${territory.finished ? "finished" : territory.partial ? "partial" : "pending"}">${territory.finished ? "Finalizado" : territory.partial ? "Parcial" : "Em andamento"}</small>` : ""}
+              ${territory.departureLocation || territory.departureTime ? `<small class="scheduled-territory__departure"><strong>Saída:</strong> ${escapeHtml(territory.departureLocation || "Local não informado")}${territory.departureTime ? ` • ${escapeHtml(territory.departureTime)}` : ""}</small>` : ""}
             </div>
             <div class="scheduled-territory__actions">
               ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
@@ -1407,6 +1622,7 @@ function requestSchedulePermission(onConfirmed) {
 
 function openScheduleDialog(schedule = null) {
   const selected = new Set(Array.isArray(schedule?.data?.territorioIds) ? schedule.data.territorioIds : []);
+  const savedTerritories = Array.isArray(schedule?.data?.territorios) ? schedule.data.territorios : [];
   const date = schedule?.data?.data || todayDateKey();
   const departureLocation = schedule?.data?.localSaida?.toString() || "";
   const weekend = isWeekendScheduleDate(date);
@@ -1427,14 +1643,30 @@ function openScheduleDialog(schedule = null) {
       <fieldset class="territory-picker">
         <legend>Territórios</legend>
         <div class="territory-choice-list">
-          ${state.territories.map((territory) => `
-            <label class="territory-choice">
-              <input type="checkbox" name="territoryIds" value="${escapeHtml(territory.id)}" ${selected.has(territory.id) ? "checked" : ""}>
-              <span>
-                <strong>${escapeHtml(territory.data.nome || "Território")}</strong>
-                <small>${territory.data.finalizado === true ? "Finalizado" : territory.data.parcial === true ? "Parcial" : "Em andamento"}</small>
-              </span>
-            </label>`).join("")}
+          ${state.territories.map((territory) => {
+            const saved = savedTerritories.find((item) => item?.id === territory.id) || {};
+            const checked = selected.has(territory.id);
+            return `
+              <div class="territory-choice-card" data-territory-assignment>
+                <label class="territory-choice">
+                  <input type="checkbox" name="territoryIds" value="${escapeHtml(territory.id)}" ${checked ? "checked" : ""}>
+                  <span>
+                    <strong>${escapeHtml(territory.data.nome || "Território")}</strong>
+                    <small>${territory.data.finalizado === true ? "Finalizado" : territory.data.parcial === true ? "Parcial" : "Em andamento"}</small>
+                  </span>
+                </label>
+                <div class="territory-assignment-fields" ${checked ? "" : "hidden"}>
+                  <div class="field">
+                    <label for="territory-location-${escapeHtml(territory.id)}">Local da saída</label>
+                    <input id="territory-location-${escapeHtml(territory.id)}" name="territoryLocation__${escapeHtml(territory.id)}" maxlength="120" value="${escapeHtml(saved.localSaida || "")}" placeholder="Ex.: Salão do Reino">
+                  </div>
+                  <div class="field territory-time-field">
+                    <label for="territory-time-${escapeHtml(territory.id)}">Horário</label>
+                    <input id="territory-time-${escapeHtml(territory.id)}" name="territoryTime__${escapeHtml(territory.id)}" type="time" value="${escapeHtml(saved.horarioSaida || "")}">
+                  </div>
+                </div>
+              </div>`;
+          }).join("")}
         </div>
       </fieldset>`,
     confirmLabel: "Salvar programação",
@@ -1446,11 +1678,22 @@ function openScheduleDialog(schedule = null) {
       const selectedWeekend = isWeekendScheduleDate(selectedDate);
       if (selectedWeekend && !selectedDepartureLocation) return setError("Informe de qual casa será a saída de campo.");
       if (!territoryIds.length) return setError("Escolha pelo menos um território.");
+      const territoryDepartures = {};
+      for (const id of territoryIds) {
+        const location = String(formData.get(`territoryLocation__${id}`) || "").trim();
+        const time = String(formData.get(`territoryTime__${id}`) || "").trim();
+        if ((location && !time) || (!location && time)) {
+          const territory = findTerritory(id);
+          return setError(`Informe o local e o horário da saída de ${territory?.data?.nome || "cada território"}.`);
+        }
+        if (location && time) territoryDepartures[id] = { location, time };
+      }
       await saveSchedule({
         schedule,
         date: selectedDate,
         territoryIds,
-        departureLocation: selectedWeekend ? selectedDepartureLocation : ""
+        departureLocation: selectedWeekend ? selectedDepartureLocation : "",
+        territoryDepartures
       });
       controls.close();
       showToast("Programação salva e compartilhada com a congregação.");
@@ -1468,10 +1711,19 @@ function openScheduleDialog(schedule = null) {
   };
   dateInput.addEventListener("change", syncDepartureField);
   dateInput.addEventListener("input", syncDepartureField);
+  controls.dialog.querySelectorAll("[data-territory-assignment]").forEach((card) => {
+    const checkbox = card.querySelector('input[name="territoryIds"]');
+    const assignmentFields = card.querySelector(".territory-assignment-fields");
+    const syncAssignmentFields = () => {
+      assignmentFields.hidden = !checkbox.checked;
+    };
+    checkbox.addEventListener("change", syncAssignmentFields);
+    syncAssignmentFields();
+  });
   syncDepartureField();
 }
 
-async function saveSchedule({ schedule = null, date, territoryIds, departureLocation = "" }) {
+async function saveSchedule({ schedule = null, date, territoryIds, departureLocation = "", territoryDepartures = {} }) {
   if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
   if (!isAdministrator()) throw new Error("Somente administradores podem salvar programações.");
   const email = state.user.email || "sem_email";
@@ -1484,7 +1736,9 @@ async function saveSchedule({ schedule = null, date, territoryIds, departureLoca
     return {
       id,
       nome: territory?.data?.nome?.toString() || "Território",
-      mapsUrl: territory?.data?.mapsUrl?.toString() || ""
+      mapsUrl: territory?.data?.mapsUrl?.toString() || "",
+      localSaida: territoryDepartures[id]?.location || "",
+      horarioSaida: territoryDepartures[id]?.time || ""
     };
   });
   const payload = {
@@ -1644,6 +1898,9 @@ function territoryCard(id, data) {
   const completionStatus = territoryCompletionStatus(data);
   const statusKey = territoryStatusKey(data);
   const nextSchedule = nextScheduleForTerritory(id);
+  const nextScheduleTerritory = nextSchedule
+    ? scheduleTerritories(nextSchedule).find((territory) => territory.id === id)
+    : null;
 
   return `
     <article class="territory-card ${finished ? "finished" : "pending"}" data-territory-search="${escapeHtml(normalizeTerritorySearch(name))}" data-territory-status="${statusKey}">
@@ -1668,7 +1925,7 @@ function territoryCard(id, data) {
       ${nextSchedule ? `
         <div class="territory-next-schedule">
           <span aria-hidden="true">📅</span>
-          <span><strong>Programado:</strong> ${escapeHtml(formatScheduleDate(nextSchedule.data.data))}${nextSchedule.data.data === todayDateKey() ? " — Hoje" : ""}</span>
+          <span><strong>Programado:</strong> ${escapeHtml(formatScheduleDate(nextSchedule.data.data))}${nextSchedule.data.data === todayDateKey() ? " — Hoje" : ""}${nextScheduleTerritory?.departureLocation || nextScheduleTerritory?.departureTime ? `<small><strong>Saída:</strong> ${escapeHtml(nextScheduleTerritory.departureLocation || "Local não informado")}${nextScheduleTerritory.departureTime ? ` • ${escapeHtml(nextScheduleTerritory.departureTime)}` : ""}</small>` : ""}</span>
         </div>` : ""}
       ${observation ? `
         <div class="territory-observation">
