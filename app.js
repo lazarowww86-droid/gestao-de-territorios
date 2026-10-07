@@ -1345,8 +1345,19 @@ function nextScheduleBanner() {
         </div>
         ${isToday ? `<span class="today-pill">HOJE</span>` : ""}
       </div>
-      <div class="scheduled-territory-chips">
-        ${territories.map((territory) => `<span>${escapeHtml(territory.name)}</span>`).join("")}
+      <div class="scheduled-territories next-schedule-territories">
+        ${territories.map((territory) => `
+          <div class="scheduled-territory">
+            <div class="scheduled-territory__info">
+              <span>${escapeHtml(territory.name)}</span>
+              ${territory.manageable ? `<small class="scheduled-territory__status ${territory.finished ? "finished" : territory.partial ? "partial" : "pending"}">${territory.finished ? "Finalizado" : territory.partial ? "Parcial" : "Em andamento"}</small>` : ""}
+              ${territory.departureLocation || territory.departureTime ? `<small class="scheduled-territory__departure"><strong>Saída:</strong> ${escapeHtml(territory.departureLocation || "Local não informado")}${territory.departureTime ? ` • ${escapeHtml(territory.departureTime)}` : ""}</small>` : ""}
+            </div>
+            <div class="scheduled-territory__actions">
+              ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
+              ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
+            </div>
+          </div>`).join("")}
       </div>
       ${departureLocation ? `
         <div class="departure-location">
