@@ -164,6 +164,7 @@ const state = {
   notificationStatus: "checking",
   notificationBusy: false,
   notificationError: "",
+  mapCoordinateAttempts: new Set(),
   webMcpLifecycle: null
 };
 
@@ -868,6 +869,7 @@ function subscribeTerritories() {
     state.territories = snapshot.docs.map((item) => ({ id: item.id, ref: item.ref, data: item.data() }));
     renderMainView();
     registerWebMcpTools();
+    void backfillTerritoryCoordinates();
   }, (error) => {
     renderRecoverableError("Não foi possível carregar os territórios.", subscribeTerritories, error);
   });
@@ -1097,11 +1099,124 @@ function normalizedMapsUrl(value) {
   }
 }
 
-function territoryCoordinates(mapsUrl) {
-  const raw = String(mapsUrl || "");
-  const embedded = decodeURIComponent(raw).match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (embedded) return [Number(embedded[1]), Number(embedded[2])];
-  return TERRITORY_MAP_COORDINATES.get(normalizedMapsUrl(raw)) || null;
+function isGoogleMapsUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "https:") return false;
+    if (host === "maps.app.goo.gl" || host === "goo.gl") return true;
+    return /^(?:(?:www|maps)\.)?google\.(?:com|com\.br)$/.test(host)
+      && (url.pathname === "/maps" || url.pathname.startsWith("/maps/"));
+  } catch {
+    return false;
+  }
+}
+
+function decodedMapText(value) {
+  let result = String(value || "");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const decoded = decodeURIComponent(result);
+      if (decoded === result) break;
+      result = decoded;
+    } catch {
+      break;
+    }
+  }
+  return result;
+}
+
+function validCoordinatePair(latitude, longitude) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return [lat, lng];
+}
+
+function extractCoordinatesFromMapText(value) {
+  const text = decodedMapText(value);
+  const patterns = [
+    /@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/i,
+    /!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/i,
+    /(?:[?&](?:query|q|ll|center|destination|daddr)=)(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const pair = match && validCoordinatePair(match[1], match[2]);
+    if (pair) return pair;
+  }
+  return null;
+}
+
+function territoryCoordinates(dataOrUrl) {
+  const data = dataOrUrl && typeof dataOrUrl === "object" ? dataOrUrl : null;
+  if (data) {
+    const saved = data.mapLatitude !== null && data.mapLatitude !== undefined
+      && data.mapLongitude !== null && data.mapLongitude !== undefined
+      ? validCoordinatePair(data.mapLatitude, data.mapLongitude)
+      : null;
+    if (saved) return saved;
+  }
+  const mapsUrl = data ? data.mapsUrl : dataOrUrl;
+  const direct = extractCoordinatesFromMapText(mapsUrl);
+  if (direct) return direct;
+  return TERRITORY_MAP_COORDINATES.get(normalizedMapsUrl(mapsUrl)) || null;
+}
+
+async function resolveTerritoryMapUrl(mapsUrl) {
+  const normalized = String(mapsUrl || "").trim();
+  if (!normalized) return null;
+  if (!isGoogleMapsUrl(normalized)) {
+    throw new Error("Cole um link válido do Google Maps.");
+  }
+
+  const known = territoryCoordinates(normalized);
+  if (known) return { latitude: known[0], longitude: known[1] };
+  if (!state.user) throw new Error("Faça login novamente para localizar o território no mapa.");
+
+  const idToken = await state.user.getIdToken();
+  const response = await fetch(`${PUSH_API_URL}/resolve-map`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${idToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ mapsUrl: normalized })
+  });
+  const result = await response.json().catch(() => ({}));
+  const pair = validCoordinatePair(result.latitude, result.longitude);
+  if (!response.ok || !pair) {
+    throw new Error(result.error || "Não foi possível reconhecer a posição desse link do Google Maps. Gere um novo link de compartilhamento e tente novamente.");
+  }
+  return { latitude: pair[0], longitude: pair[1] };
+}
+
+async function backfillTerritoryCoordinates() {
+  if (!state.user || !state.congregationId || !isAdministrator()) return;
+  const pending = state.territories.filter(({ id, data }) => {
+    if (!data.mapsUrl || state.mapCoordinateAttempts.has(id)) return false;
+    return !validCoordinatePair(data.mapLatitude, data.mapLongitude);
+  });
+  pending.forEach(({ id }) => state.mapCoordinateAttempts.add(id));
+
+  for (const territory of pending) {
+    try {
+      const local = territoryCoordinates(territory.data);
+      const located = local
+        ? { latitude: local[0], longitude: local[1] }
+        : await resolveTerritoryMapUrl(territory.data.mapsUrl);
+      if (!located) continue;
+      await updateDoc(territory.ref, {
+        mapLatitude: located.latitude,
+        mapLongitude: located.longitude,
+        mapaLocalizadoEm: serverTimestamp(),
+        mapaLocalizadoPor: state.user.email || "sem_email"
+      });
+    } catch (error) {
+      console.warn(`Não foi possível localizar o território ${territory.id}.`, error);
+    }
+  }
 }
 
 function territoryStatusLabel(data) {
@@ -1116,7 +1231,7 @@ function renderMapView() {
   const partial = state.territories.filter((territory) => territory.data.parcial === true && territory.data.finalizado !== true).length;
   const inProgress = Math.max(total - completed - partial, 0);
   const coverage = total ? Math.round((completed / total) * 100) : 0;
-  const positioned = state.territories.filter((territory) => territoryCoordinates(territory.data.mapsUrl)).length;
+  const positioned = state.territories.filter((territory) => territoryCoordinates(territory.data)).length;
 
   appElement.innerHTML = `
     <section class="page-shell">
@@ -1175,7 +1290,7 @@ function initializeTerritoryMap() {
   }
 
   const mapped = state.territories
-    .map((territory) => ({ territory, coordinates: territoryCoordinates(territory.data.mapsUrl) }))
+    .map((territory) => ({ territory, coordinates: territoryCoordinates(territory.data) }))
     .filter((item) => item.coordinates);
   if (!mapped.length) {
     mapElement.hidden = true;
@@ -1230,19 +1345,8 @@ function nextScheduleBanner() {
         </div>
         ${isToday ? `<span class="today-pill">HOJE</span>` : ""}
       </div>
-      <div class="scheduled-territories next-schedule-territories">
-        ${territories.map((territory) => `
-          <div class="scheduled-territory">
-            <div class="scheduled-territory__info">
-              <span>${escapeHtml(territory.name)}</span>
-              ${territory.manageable ? `<small class="scheduled-territory__status ${territory.finished ? "finished" : territory.partial ? "partial" : "pending"}">${territory.finished ? "Finalizado" : territory.partial ? "Parcial" : "Em andamento"}</small>` : ""}
-              ${territory.departureLocation || territory.departureTime ? `<small class="scheduled-territory__departure"><strong>Saída:</strong> ${escapeHtml(territory.departureLocation || "Local não informado")}${territory.departureTime ? ` • ${escapeHtml(territory.departureTime)}` : ""}</small>` : ""}
-            </div>
-            <div class="scheduled-territory__actions">
-              ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
-              ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
-            </div>
-          </div>`).join("")}
+      <div class="scheduled-territory-chips">
+        ${territories.map((territory) => `<span>${escapeHtml(territory.name)}</span>`).join("")}
       </div>
       ${departureLocation ? `
         <div class="departure-location">
@@ -2226,13 +2330,14 @@ function openTerritoryDialog(territory = null) {
       </div>
       <div class="field">
         <label for="territory-maps">Link do Google Maps (opcional)</label>
-        <input id="territory-maps" name="mapsUrl" type="url" inputmode="url" value="${escapeHtml(data.mapsUrl || "")}">
+        <input id="territory-maps" name="mapsUrl" type="url" inputmode="url" maxlength="2048" autocomplete="off" value="${escapeHtml(data.mapsUrl || "")}" placeholder="Cole o link compartilhado pelo Google Maps">
+        <small class="field-help">O ponto da quadra será reconhecido automaticamente e aparecerá no Mapa geral.</small>
       </div>`,
     onSubmit: async (formData, setError) => {
       const name = formData.get("name").trim();
       const mapsUrl = formData.get("mapsUrl").trim();
       if (!name) return setError("Digite o nome do território.");
-      if (mapsUrl && !/^https?:\/\//i.test(mapsUrl)) return setError("Cole um link válido (http/https).");
+      if (mapsUrl && !isGoogleMapsUrl(mapsUrl)) return setError("Cole um link válido do Google Maps.");
       await saveTerritory({ id: territory?.id, name, mapsUrl });
       controls.close();
     }
@@ -2244,12 +2349,29 @@ async function saveTerritory({ id = null, name, mapsUrl = "" }) {
   if (!state.congregationId) throw new Error("Usuário sem congregação.");
   if (!isAdministrator()) throw new Error("Somente administradores podem cadastrar ou editar territórios.");
   const email = state.user.email || "sem_email";
+  const currentTerritory = id ? findTerritory(id) : null;
+  const currentCoordinates = currentTerritory
+    && normalizedMapsUrl(currentTerritory.data.mapsUrl) === normalizedMapsUrl(mapsUrl)
+    ? territoryCoordinates(currentTerritory.data)
+    : null;
+  const mapLocation = mapsUrl
+    ? (currentCoordinates
+      ? { latitude: currentCoordinates[0], longitude: currentCoordinates[1] }
+      : await resolveTerritoryMapUrl(mapsUrl))
+    : null;
+  const mapFields = {
+    mapLatitude: mapLocation?.latitude ?? null,
+    mapLongitude: mapLocation?.longitude ?? null,
+    mapaLocalizadoEm: mapLocation ? serverTimestamp() : null,
+    mapaLocalizadoPor: mapLocation ? email : null
+  };
 
   if (!id) {
     await addDoc(collection(db, "territorios"), {
       congregacaoId: state.congregationId,
       nome: name,
       mapsUrl,
+      ...mapFields,
       finalizado: false,
       parcial: false,
       progressoRua: null,
@@ -2275,6 +2397,7 @@ async function saveTerritory({ id = null, name, mapsUrl = "" }) {
     await updateDoc(doc(db, "territorios", id), {
       nome: name,
       mapsUrl,
+      ...mapFields,
       ultimaAtualizacaoEm: serverTimestamp(),
       ultimaAtualizacaoPor: email
     });
@@ -2469,7 +2592,7 @@ function registerWebMcpTools() {
       const name = String(input?.name || "").trim();
       const mapsUrl = String(input?.mapsUrl || "").trim();
       if (!name) throw new Error("Nome do território é obrigatório.");
-      if (mapsUrl && !/^https?:\/\//i.test(mapsUrl)) throw new Error("O link deve começar com http:// ou https://.");
+      if (mapsUrl && !isGoogleMapsUrl(mapsUrl)) throw new Error("Informe um link válido do Google Maps.");
       await saveTerritory({ name, mapsUrl });
       return { created: true, name };
     }
@@ -2523,12 +2646,13 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=20").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26").catch(() => {});
   });
 }
 
 onAuthStateChanged(auth, async (user) => {
   state.user = user;
+  state.mapCoordinateAttempts.clear();
   if (!user) {
     disconnectPushIdentity();
     state.stopUserProfile?.();

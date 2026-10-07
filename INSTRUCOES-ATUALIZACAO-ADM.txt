@@ -1,35 +1,40 @@
-ATUALIZAÇÃO V19 — CORREÇÃO AUTOMÁTICA DO VÍNCULO DOS USUÁRIOS
+ATUALIZAÇÃO V26 — MAPA GERAL AUTOMÁTICO PARA TODAS AS CONGREGAÇÕES
 
-ARQUIVOS DO SITE (GitHub)
-1. Na raiz do repositório, substitua index.html, app.js, styles.css, sw.js e manifest.webmanifest.
-2. Envie também a pasta push com a subpasta onesignal e o arquivo OneSignalSDKWorker.js.
-3. Mantenha a pasta icons e os arquivos que já existem no repositório.
-4. Não apague a pasta push: ela é necessária para receber notificações com o aplicativo fechado.
+NÃO PUBLICAR DURANTE A CERTIFICAÇÃO DA MICROSOFT
+- Guarde este pacote até a certificação atual terminar.
+- Esta preparação não altera o GitHub nem o aplicativo que está sendo avaliado.
 
-ORDEM SEGURA DA ATUALIZAÇÃO
-1. Primeiro publique os arquivos do site no GitHub.
-2. Aguarde o GitHub Pages atualizar.
-3. Publique também o novo firestore.rules no Firebase:
-   Firebase Console > Firestore Database > Regras > substitua o conteúdo > Publicar.
-4. Feche completamente o aplicativo e entre primeiro com a conta do administrador principal.
-5. Aguarde alguns segundos para o código NOVAV3X ser reconectado à congregação correta.
-6. Depois entre novamente na conta de teste que estava mostrando a congregação vazia.
-7. Essa conta será movida automaticamente para os territórios reais.
-8. Na conta nova, aceite as notificações quando o aplicativo solicitar.
+O QUE MUDA
+- O administrador cola o link compartilhado do Google Maps ao adicionar ou editar um território.
+- O aplicativo reconhece automaticamente a latitude e a longitude do link.
+- O ponto aparece no Mapa geral da congregação correta.
+- Cada congregação continua vendo somente os próprios territórios.
+- O marcador mantém as cores de território finalizado, parcial e em andamento.
+- Os territórios antigos são migrados automaticamente quando um administrador entra no aplicativo.
+
+ARQUIVOS NECESSÁRIOS
+- O ZIP do site contém os arquivos completos para o GitHub Pages.
+- O arquivo cloudflare-worker-v26.js atualiza o Worker já usado pelas notificações.
+- As regras do Firestore foram preservadas e não precisam ser publicadas novamente nesta atualização.
+
+ORDEM CORRETA PARA PUBLICAR DEPOIS DA CERTIFICAÇÃO
+1. No Cloudflare, abra o Worker gestao-territorios-notificacoes.
+2. Edite o código e substitua tudo pelo conteúdo de cloudflare-worker-v26.js.
+3. Publique o Worker. As variáveis ONESIGNAL_APP_API_KEY e ONESIGNAL_APP_ID permanecem as mesmas.
+4. Somente depois envie ao GitHub os arquivos do ZIP do site, mantendo as pastas icons e push.
+5. Aguarde o GitHub Pages atualizar.
+6. Feche completamente o aplicativo instalado e abra novamente para receber o cache V26.
+
+TESTE RECOMENDADO
+1. Entre como administrador.
+2. Adicione um território e cole um link compartilhado do Google Maps.
+3. Salve o território.
+4. Abra Mapa geral e confira se o ponto apareceu.
+5. Toque no ponto e confirme se o link original abre no Google Maps.
 
 IMPORTANTE
-- O arquivo firestore.rules não precisa ser enviado ao GitHub para funcionar.
-- Ele deve ser copiado e colado na tela de Regras do Firestore.
-- A correção V19 faz o administrador principal reafirmar NOVAV3X como o convite da congregação correta.
-- Contas que já entraram no registro duplicado e vazio são corrigidas automaticamente no próximo login.
-- A configuração do OneSignal e o caminho push/onesignal/OneSignalSDKWorker.js foram preservados.
-- Usuários existentes permanecem como usuários comuns.
-- O criador da congregação torna-se automaticamente o administrador principal.
-- O administrador principal usa “Administrar usuários” para promover ou remover administradores.
-- Administrador principal e administradores visualizam o código da congregação.
-- Usuários comuns não visualizam o código.
-- Territórios, históricos, observações, avisos e programações existentes não são apagados.
-
-SE ALGO NÃO APARECER DE IMEDIATO
-- Feche completamente e abra novamente o PWA.
-- Se necessário, abra o site no navegador e atualize a página uma vez para receber a versão V19 do cache.
+- Não é necessário informar latitude ou longitude manualmente.
+- Links curtos maps.app.goo.gl são resolvidos pelo Cloudflare Worker.
+- Links completos que já contêm coordenadas são reconhecidos diretamente pelo aplicativo.
+- Um link que não possa ser localizado não será salvo silenciosamente: o aplicativo pedirá um novo link.
+- As notificações OneSignal, curtidas, usuários, programações, regras e separação por congregação foram preservadas.

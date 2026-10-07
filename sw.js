@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestao-territorios-v26-home-schedule-actions";
+const CACHE_NAME = "gestao-territorios-v26-auto-map-links";
 const APP_SHELL = [
   "./",
   "./index.html",
