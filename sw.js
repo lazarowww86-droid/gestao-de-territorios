@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v26-2-delete-territory";
+const CACHE_NAME = "gestao-territorios-v26-3-nearby-territories";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26.2",
-  "./app.js?v=26.2",
+  "./styles.css?v=26.3",
+  "./app.js?v=26.3",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

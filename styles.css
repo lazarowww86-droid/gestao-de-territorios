@@ -471,13 +471,35 @@ button { -webkit-tap-highlight-color: transparent; }
 .scheduled-territory__departure { color: var(--primary-dark); font-size: 0.78rem; line-height: 1.35; }
 .scheduled-territory__actions { display: flex; align-items: center; gap: 0.35rem; flex: 0 0 auto; }
 .map-icon { display: inline-block; font-size: 1.15rem; line-height: 1; }
+.scheduled-territory__nearby,
 .scheduled-territory__manage { min-height: 2.25rem; padding: 0.35rem 0.65rem; font-size: 0.78rem; }
 .territory-management-actions { display: grid; gap: 0.6rem; }
 .territory-management-actions .btn { width: 100%; }
 
+.nearby-territory-list { display: grid; gap: 0.55rem; }
+.nearby-territory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.75rem;
+  background: var(--surface-variant);
+  border: 1px solid var(--outline-soft);
+  border-radius: 0.8rem;
+}
+.nearby-territory-info { display: grid; gap: 0.2rem; min-width: 0; }
+.nearby-territory-info strong { overflow-wrap: anywhere; }
+.nearby-territory-info small { color: var(--muted); font-size: 0.8rem; }
+.nearby-territory-actions { display: flex; align-items: center; gap: 0.35rem; flex: 0 0 auto; }
+.nearby-territory-actions .btn { min-height: 2.25rem; padding: 0.35rem 0.65rem; font-size: 0.78rem; }
+.nearby-territory-note { margin: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.nearby-territory-empty { padding: 1rem; color: var(--muted); text-align: center; background: var(--surface-variant); border-radius: 0.8rem; }
+
 @media (max-width: 34rem) {
   .scheduled-territory { align-items: flex-start; }
   .scheduled-territory__actions { align-items: flex-end; flex-direction: column; }
+  .nearby-territory-row { align-items: flex-start; }
+  .nearby-territory-actions { align-items: flex-end; flex-direction: column; }
 }
 
 .schedule-empty {

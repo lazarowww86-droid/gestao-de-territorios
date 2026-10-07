@@ -1,40 +1,40 @@
-ATUALIZAÇÃO V26 — MAPA GERAL AUTOMÁTICO PARA TODAS AS CONGREGAÇÕES
-
-NÃO PUBLICAR DURANTE A CERTIFICAÇÃO DA MICROSOFT
-- Guarde este pacote até a certificação atual terminar.
-- Esta preparação não altera o GitHub nem o aplicativo que está sendo avaliado.
+ATUALIZAÇÃO V26.3 — TERRITÓRIOS MAIS PRÓXIMOS
 
 O QUE MUDA
-- O administrador cola o link compartilhado do Google Maps ao adicionar ou editar um território.
-- O aplicativo reconhece automaticamente a latitude e a longitude do link.
-- O ponto aparece no Mapa geral da congregação correta.
-- Cada congregação continua vendo somente os próprios territórios.
-- O marcador mantém as cores de território finalizado, parcial e em andamento.
-- Os territórios antigos são migrados automaticamente quando um administrador entra no aplicativo.
+- Todos os usuários da mesma congregação podem consultar os territórios disponíveis mais próximos.
+- Nos territórios programados, o botão "Próximos" abre até cinco quadras vizinhas.
+- A mesma opção aparece dentro do botão "Gerenciar".
+- Ao finalizar um território, o aplicativo mostra automaticamente os próximos disponíveis.
+- A distância é aproximada e calculada pelas coordenadas reconhecidas nos links do Google Maps.
+- Territórios finalizados não aparecem como opção disponível.
+- Territórios sem posição reconhecida continuam no aplicativo, mas não entram no cálculo de proximidade.
 
-ARQUIVOS NECESSÁRIOS
-- O ZIP do site contém os arquivos completos para o GitHub Pages.
-- O arquivo cloudflare-worker-v26.js atualiza o Worker já usado pelas notificações.
-- As regras do Firestore foram preservadas e não precisam ser publicadas novamente nesta atualização.
+O QUE FOI PRESERVADO
+- Login, perfis de usuário e separação por congregação.
+- Programações, locais e horários de saída.
+- Mapa geral e abertura dos links originais do Google Maps.
+- Registro de progresso, observações, finalização e reinício.
+- Exclusão de território por administrador com aviso vermelho.
+- Avisos, curtidas e notificações OneSignal/Cloudflare.
+- Regras atuais do Firestore.
 
-ORDEM CORRETA PARA PUBLICAR DEPOIS DA CERTIFICAÇÃO
-1. No Cloudflare, abra o Worker gestao-territorios-notificacoes.
-2. Edite o código e substitua tudo pelo conteúdo de cloudflare-worker-v26.js.
-3. Publique o Worker. As variáveis ONESIGNAL_APP_API_KEY e ONESIGNAL_APP_ID permanecem as mesmas.
-4. Somente depois envie ao GitHub os arquivos do ZIP do site, mantendo as pastas icons e push.
-5. Aguarde o GitHub Pages atualizar.
-6. Feche completamente o aplicativo instalado e abra novamente para receber o cache V26.
+COMO PUBLICAR NO GITHUB
+1. Extraia este ZIP no computador.
+2. No repositório gestao-de-territorios, escolha Add file > Upload files.
+3. Envie todos os arquivos e as pastas icons e push, mantendo a mesma estrutura.
+4. Use a mensagem: V26.3 - territórios mais próximos.
+5. Confirme o commit na branch main.
+6. Aguarde o GitHub Pages concluir a publicação.
+7. Feche completamente o aplicativo e abra novamente para receber o novo cache.
+
+NÃO É NECESSÁRIO NESTA ATUALIZAÇÃO
+- Alterar o Cloudflare Worker.
+- Publicar novamente as regras do Firestore.
+- Apagar dados ou reinstalar o aplicativo.
 
 TESTE RECOMENDADO
-1. Entre como administrador.
-2. Adicione um território e cole um link compartilhado do Google Maps.
-3. Salve o território.
-4. Abra Mapa geral e confira se o ponto apareceu.
-5. Toque no ponto e confirme se o link original abre no Google Maps.
-
-IMPORTANTE
-- Não é necessário informar latitude ou longitude manualmente.
-- Links curtos maps.app.goo.gl são resolvidos pelo Cloudflare Worker.
-- Links completos que já contêm coordenadas são reconhecidos diretamente pelo aplicativo.
-- Um link que não possa ser localizado não será salvo silenciosamente: o aplicativo pedirá um novo link.
-- As notificações OneSignal, curtidas, usuários, programações, regras e separação por congregação foram preservadas.
+1. Abra um território programado e toque em Próximos.
+2. Confirme se os territórios aparecem do mais próximo para o mais distante.
+3. Abra o mapa de uma opção e confirme o link do Google Maps.
+4. Entre com um usuário comum e confirme que a opção também está disponível.
+5. Finalize um território e confira se a lista de próximos aparece automaticamente.

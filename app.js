@@ -1226,6 +1226,115 @@ function territoryStatusLabel(data) {
   return "Em andamento";
 }
 
+function distanceBetweenCoordinatesKm(origin, destination) {
+  const toRadians = (value) => value * (Math.PI / 180);
+  const [originLatitude, originLongitude] = origin;
+  const [destinationLatitude, destinationLongitude] = destination;
+  const latitudeDistance = toRadians(destinationLatitude - originLatitude);
+  const longitudeDistance = toRadians(destinationLongitude - originLongitude);
+  const originLatitudeRadians = toRadians(originLatitude);
+  const destinationLatitudeRadians = toRadians(destinationLatitude);
+  const haversine = Math.sin(latitudeDistance / 2) ** 2
+    + Math.cos(originLatitudeRadians) * Math.cos(destinationLatitudeRadians)
+    * Math.sin(longitudeDistance / 2) ** 2;
+  const clampedHaversine = Math.min(1, Math.max(0, haversine));
+  return 6371 * 2 * Math.atan2(Math.sqrt(clampedHaversine), Math.sqrt(1 - clampedHaversine));
+}
+
+function formatTerritoryDistance(distanceKm) {
+  if (distanceKm < 1) return `${Math.max(1, Math.round(distanceKm * 1000))} m`;
+  return `${distanceKm.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+}
+
+function nearbyTerritories(referenceId, maximum = 5) {
+  const reference = findTerritory(referenceId);
+  const referenceCoordinates = reference && territoryCoordinates(reference.data);
+  if (!reference || !referenceCoordinates) return null;
+
+  return state.territories
+    .filter((territory) => territory.id !== referenceId && territory.data.finalizado !== true)
+    .map((territory) => {
+      const coordinates = territoryCoordinates(territory.data);
+      if (!coordinates) return null;
+      return {
+        territory,
+        distanceKm: distanceBetweenCoordinatesKm(referenceCoordinates, coordinates)
+      };
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.distanceKm - second.distanceKm
+      || String(first.territory.data.nome || "").localeCompare(
+        String(second.territory.data.nome || ""),
+        "pt-BR",
+        { numeric: true, sensitivity: "base" }
+      ))
+    .slice(0, maximum);
+}
+
+function openNearbyTerritoriesDialog(referenceId, { afterFinish = false } = {}) {
+  const reference = findTerritory(referenceId);
+  if (!reference) return showToast("Território não encontrado.");
+
+  const referenceName = reference.data.nome?.toString() || "Território";
+  const nearby = nearbyTerritories(referenceId);
+  if (nearby === null) {
+    showToast(`${afterFinish ? "Território finalizado. " : ""}Não foi possível calcular os mais próximos porque este território não possui uma posição reconhecida.`);
+    return;
+  }
+
+  modalRoot.innerHTML = `
+    <dialog class="app-dialog nearby-territories-dialog">
+      <div class="dialog-form">
+        <h2 class="dialog-title">Territórios mais próximos</h2>
+        <p class="dialog-help">${afterFinish ? `${escapeHtml(referenceName)} foi finalizado. ` : ""}Veja até cinco territórios disponíveis mais próximos de <strong>${escapeHtml(referenceName)}</strong>.</p>
+        <div class="nearby-territory-list">
+          ${nearby.length ? nearby.map(({ territory, distanceKm }) => {
+            const name = territory.data.nome?.toString() || "Território";
+            const mapsUrl = territory.data.mapsUrl?.toString() || "";
+            return `
+              <div class="nearby-territory-row">
+                <div class="nearby-territory-info">
+                  <strong>${escapeHtml(name)}</strong>
+                  <small>${escapeHtml(formatTerritoryDistance(distanceKm))} • ${escapeHtml(territoryStatusLabel(territory.data))}</small>
+                </div>
+                <div class="nearby-territory-actions">
+                  ${mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(mapsUrl)}" aria-label="Abrir ${escapeHtml(name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
+                  <button class="btn btn-outlined" type="button" data-manage-nearby-territory="${escapeHtml(territory.id)}">Gerenciar</button>
+                </div>
+              </div>`;
+          }).join("") : `<div class="nearby-territory-empty">Nenhum outro território disponível com posição reconhecida.</div>`}
+        </div>
+        <p class="nearby-territory-note">A distância é aproximada e calculada pelos pontos dos links do Google Maps.</p>
+        <div class="dialog-actions">
+          <button class="btn btn-tonal close-nearby-territories" type="button">Fechar</button>
+        </div>
+      </div>
+    </dialog>`;
+
+  const dialog = modalRoot.querySelector("dialog");
+  const close = () => {
+    dialog.close();
+    modalRoot.innerHTML = "";
+  };
+
+  dialog.querySelector(".close-nearby-territories").addEventListener("click", close);
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    close();
+  });
+  dialog.querySelectorAll("[data-open-maps]").forEach((button) => {
+    button.addEventListener("click", () => openMaps(button.dataset.openMaps));
+  });
+  dialog.querySelectorAll("[data-manage-nearby-territory]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const territoryId = button.dataset.manageNearbyTerritory;
+      close();
+      openScheduledTerritoryManagement(territoryId);
+    });
+  });
+  dialog.showModal();
+}
+
 function renderMapView() {
   const total = state.territories.length;
   const completed = state.territories.filter((territory) => territory.data.finalizado === true).length;
@@ -1356,6 +1465,7 @@ function nextScheduleBanner() {
             </div>
             <div class="scheduled-territory__actions">
               ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
+              ${territory.manageable ? `<button class="btn btn-tonal scheduled-territory__nearby" type="button" data-nearby-territory="${escapeHtml(territory.id)}">Próximos</button>` : ""}
               ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
             </div>
           </div>`).join("")}
@@ -1564,6 +1674,9 @@ function renderTerritories() {
   document.querySelectorAll("[data-manage-territory]").forEach((button) => {
     button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageTerritory));
   });
+  document.querySelectorAll("[data-nearby-territory]").forEach((button) => {
+    button.addEventListener("click", () => openNearbyTerritoriesDialog(button.dataset.nearbyTerritory));
+  });
   applyTerritorySearch(state.territorySearch);
 }
 
@@ -1620,6 +1733,9 @@ function renderSchedules() {
   document.querySelectorAll("[data-manage-scheduled-territory]").forEach((button) => {
     button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageScheduledTerritory));
   });
+  document.querySelectorAll("[data-nearby-territory]").forEach((button) => {
+    button.addEventListener("click", () => openNearbyTerritoriesDialog(button.dataset.nearbyTerritory));
+  });
 }
 
 function scheduleCard(schedule, previous = false) {
@@ -1657,6 +1773,7 @@ function scheduleCard(schedule, previous = false) {
             </div>
             <div class="scheduled-territory__actions">
               ${territory.mapsUrl ? `<button class="icon-btn" type="button" data-open-maps="${escapeHtml(territory.mapsUrl)}" aria-label="Abrir ${escapeHtml(territory.name)} no Maps" title="Abrir no Maps"><span class="map-icon" aria-hidden="true">🗺️</span></button>` : ""}
+              ${territory.manageable && !previous ? `<button class="btn btn-tonal scheduled-territory__nearby" type="button" data-nearby-territory="${escapeHtml(territory.id)}">Próximos</button>` : ""}
               ${territory.manageable ? `<button class="btn btn-outlined scheduled-territory__manage" type="button" data-manage-scheduled-territory="${escapeHtml(territory.id)}">Gerenciar</button>` : ""}
             </div>
           </div>`).join("")}
@@ -1695,6 +1812,7 @@ function openScheduledTerritoryManagement(id) {
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="clear-progress" ${partial ? "" : "disabled"}>Remover progresso</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="finish" ${finished ? "disabled" : ""}>Finalizar território</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="restart">Reiniciar território</button>
+          <button class="btn btn-tonal" type="button" data-scheduled-territory-action="nearby">Ver territórios mais próximos</button>
           ${isAdministrator() ? `<button class="btn btn-danger territory-delete-action" type="button" data-scheduled-territory-action="remove">Excluir território</button>` : ""}
         </div>
         <div class="dialog-actions">
@@ -2120,6 +2238,7 @@ async function handleTerritoryAction(action, id) {
     if (action === "clear-progress") await clearTerritoryProgress(territory);
     if (action === "finish") await finishTerritory(territory);
     if (action === "restart") openRestartDialog(territory);
+    if (action === "nearby") openNearbyTerritoriesDialog(territory.id);
     if (action === "remove") {
       if (!isAdministrator()) return showToast("Somente administradores podem excluir territórios.");
       openRemoveTerritoryDialog(territory);
@@ -2592,6 +2711,7 @@ async function finishTerritory(territory) {
     ultimaAtualizacaoEm: serverTimestamp(),
     ultimaAtualizacaoPor: email
   });
+  openNearbyTerritoriesDialog(territory.id, { afterFinish: true });
 }
 
 function openRestartDialog(territory) {
