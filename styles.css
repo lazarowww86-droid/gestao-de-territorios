@@ -147,6 +147,23 @@ button { -webkit-tap-highlight-color: transparent; }
 .btn-outlined { border: 1px solid var(--outline); }
 .btn-tonal { color: var(--primary-dark); background: var(--primary-container); }
 .btn-danger { color: var(--danger); }
+.territory-delete-action { border: 1px solid var(--danger); background: var(--danger-bg); }
+.territory-delete-action:hover { background: #f7d7d4; }
+.confirm-dialog.btn-danger { color: #ffffff; background: var(--danger); }
+.confirm-dialog.btn-danger:hover { background: #8c1d18; }
+
+.territory-delete-warning {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 2px solid var(--danger);
+  border-radius: 0.75rem;
+}
+
+.territory-delete-warning strong { font-size: 1rem; }
+.territory-delete-warning span { font-size: 0.9rem; }
 
 .icon-btn {
   width: 2.75rem;

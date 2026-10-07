@@ -27,6 +27,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   where
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -1694,6 +1695,7 @@ function openScheduledTerritoryManagement(id) {
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="clear-progress" ${partial ? "" : "disabled"}>Remover progresso</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="finish" ${finished ? "disabled" : ""}>Finalizar território</button>
           <button class="btn btn-outlined" type="button" data-scheduled-territory-action="restart">Reiniciar território</button>
+          ${isAdministrator() ? `<button class="btn btn-danger territory-delete-action" type="button" data-scheduled-territory-action="remove">Excluir território</button>` : ""}
         </div>
         <div class="dialog-actions">
           <button class="btn btn-tonal close-territory-management" type="button">Fechar</button>
@@ -2118,6 +2120,10 @@ async function handleTerritoryAction(action, id) {
     if (action === "clear-progress") await clearTerritoryProgress(territory);
     if (action === "finish") await finishTerritory(territory);
     if (action === "restart") openRestartDialog(territory);
+    if (action === "remove") {
+      if (!isAdministrator()) return showToast("Somente administradores podem excluir territórios.");
+      openRemoveTerritoryDialog(territory);
+    }
   } catch (error) {
     showToast(firebaseError(error, "Não foi possível concluir a ação."));
   }
@@ -2413,6 +2419,73 @@ async function saveTerritory({ id = null, name, mapsUrl = "" }) {
       ultimaAtualizacaoPor: email
     });
   }
+}
+
+function openRemoveTerritoryDialog(territory) {
+  if (!isAdministrator()) return showToast("Somente administradores podem excluir territórios.");
+
+  const name = territory.data.nome?.toString() || "Território";
+  let controls;
+  controls = openDialog({
+    title: "Excluir território",
+    help: name,
+    fields: `
+      <div class="territory-delete-warning" role="alert">
+        <strong>Você tem certeza que vai excluir esse território?</strong>
+        <span>Esta ação é permanente e não poderá ser desfeita.</span>
+      </div>`,
+    cancelLabel: "Cancelar",
+    confirmLabel: "Excluir território",
+    danger: true,
+    onSubmit: async () => {
+      await deleteTerritoryAndScheduleReferences(territory);
+      controls.close();
+      showToast(`${name} foi excluído.`);
+    }
+  });
+}
+
+async function deleteTerritoryAndScheduleReferences(territory) {
+  if (!state.user || !state.congregationId) throw new Error("Usuário sem congregação.");
+  if (!isAdministrator()) throw new Error("Somente administradores podem excluir territórios.");
+
+  const territoryId = String(territory.id);
+  const email = state.user.email || "sem_email";
+  const batch = writeBatch(db);
+
+  state.schedules.forEach((schedule) => {
+    const ids = Array.isArray(schedule.data.territorioIds)
+      ? schedule.data.territorioIds.map(String)
+      : [];
+    const savedTerritories = Array.isArray(schedule.data.territorios)
+      ? schedule.data.territorios
+      : [];
+    const referencesTerritory = ids.includes(territoryId)
+      || savedTerritories.some((item) => String(item?.id || "") === territoryId);
+
+    if (!referencesTerritory) return;
+
+    const remainingIds = ids.filter((id) => id !== territoryId);
+    const remainingTerritories = savedTerritories.filter((item) => String(item?.id || "") !== territoryId);
+    const normalizedRemainingIds = remainingIds.length
+      ? remainingIds
+      : remainingTerritories.map((item) => String(item?.id || "")).filter(Boolean);
+
+    if (!normalizedRemainingIds.length && !remainingTerritories.length) {
+      batch.delete(schedule.ref);
+      return;
+    }
+
+    batch.update(schedule.ref, {
+      territorioIds: normalizedRemainingIds,
+      territorios: remainingTerritories,
+      ultimaAtualizacaoPor: email,
+      ultimaAtualizacaoEm: serverTimestamp()
+    });
+  });
+
+  batch.delete(territory.ref || doc(db, "territorios", territoryId));
+  await batch.commit();
 }
 
 function openObservationDialog(territory) {
