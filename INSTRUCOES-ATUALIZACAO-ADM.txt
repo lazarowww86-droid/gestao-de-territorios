@@ -5,6 +5,9 @@ O QUE MUDA
 - A navegação principal agora fica na parte inferior com cinco opções: Início, Territórios, Programação, Mapa e Menu.
 - A aba Territórios ficou dedicada à pesquisa, aos filtros e à lista completa de quadras.
 - O Menu reúne dados da congregação, código, administração de usuários, notificações e instalação do aplicativo.
+- No Menu, cada aparelho pode usar aparência Automática, Clara ou Escura.
+- A opção Automática acompanha o tema claro ou escuro configurado no próprio aparelho.
+- A escolha de aparência fica salva somente naquele aparelho e não altera a experiência dos outros usuários.
 - Textos entre dois pares de asteriscos nos avisos agora aparecem em negrito corretamente.
 - Todos os usuários da mesma congregação podem consultar os territórios disponíveis mais próximos.
 - Nos territórios programados, o botão "Próximos" abre até cinco quadras vizinhas.
@@ -27,7 +30,7 @@ COMO PUBLICAR NO GITHUB
 1. Extraia este ZIP no computador.
 2. No repositório gestao-de-territorios, escolha Add file > Upload files.
 3. Envie todos os arquivos e as pastas icons e push, mantendo a mesma estrutura.
-4. Use a mensagem: V26.4 - novo layout roxo com navegação inferior.
+4. Use a mensagem: V26.4 - layout roxo, navegação inferior e temas.
 5. Confirme o commit na branch main.
 6. Aguarde o GitHub Pages concluir a publicação.
 7. Feche completamente o aplicativo e abra novamente para receber o novo cache.
@@ -43,6 +46,8 @@ TESTE RECOMENDADO
 3. Na tela Territórios, teste pesquisa, filtros, mapa, gerenciamento e cadastro.
 4. Na Programação, teste Próximos, mapa, gerenciamento e nova programação.
 5. No Mapa, confirme os marcadores e a abertura dos links originais do Google Maps.
-6. No Menu, teste copiar código, administrar usuários, notificações e instalação.
-7. Entre com um usuário comum e confirme que os controles administrativos não aparecem.
-8. Finalize um território e confira se a lista de próximos aparece automaticamente.
+6. No Menu, alterne entre Automático, Claro e Escuro e navegue por todas as telas em cada aparência.
+7. Ainda no Menu, teste copiar código, administrar usuários, notificações e instalação.
+8. Feche e abra o aplicativo e confirme que a aparência escolhida foi mantida no aparelho.
+9. Entre com um usuário comum e confirme que os controles administrativos não aparecem.
+10. Finalize um território e confira se a lista de próximos aparece automaticamente.

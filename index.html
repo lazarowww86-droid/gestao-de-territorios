@@ -10,11 +10,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Territórios">
     <title>Gestão de Territórios</title>
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem("gestao-territorios-theme");
+          const theme = ["system", "light", "dark"].includes(savedTheme) ? savedTheme : "system";
+          document.documentElement.dataset.theme = theme;
+          const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.querySelector('meta[name="theme-color"]').content = dark ? "#211c27" : "#6750a4";
+        } catch {
+          document.documentElement.dataset.theme = "system";
+        }
+      })();
+    </script>
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/png" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="./styles.css?v=26.4">
+    <link rel="stylesheet" href="./styles.css?v=26.4.1">
     <script>
       /*
        * Esta fila precisa existir ANTES de o SDK do OneSignal executar.
@@ -76,6 +89,6 @@
     <div id="modal-root"></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src="./app.js?v=26.4"></script>
+    <script type="module" src="./app.js?v=26.4.1"></script>
   </body>
 </html>

@@ -41,6 +41,7 @@ const firebaseConfig = {
 };
 
 const PUSH_API_URL = "https://gestao-territorios-notificacoes.lazarowww86.workers.dev";
+const THEME_STORAGE_KEY = "gestao-territorios-theme";
 
 // Coordenadas obtidas dos links já cadastrados. Os links continuam sendo a
 // fonte oficial para abrir o Google Maps; esta tabela serve somente para
@@ -138,6 +139,15 @@ const modalRoot = document.querySelector("#modal-root");
 const toastElement = document.querySelector("#toast");
 const networkBanner = document.querySelector("#network-banner");
 
+function readStoredAppearanceTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return ["system", "light", "dark"].includes(saved) ? saved : "system";
+  } catch {
+    return "system";
+  }
+}
+
 const state = {
   user: null,
   userProfile: null,
@@ -154,6 +164,7 @@ const state = {
   territorySearch: "",
   territoryFilter: "all",
   activeMainTab: "home",
+  appearanceTheme: readStoredAppearanceTheme(),
   activeCongregationTab: "create",
   stopTerritories: null,
   stopSchedules: null,
@@ -171,6 +182,47 @@ const state = {
 
 let oneSignalReadyPromise = null;
 let territoryMapInstance = null;
+const darkThemeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+
+function resolvedAppearanceTheme(preference = state.appearanceTheme) {
+  if (preference === "system") return darkThemeMedia.matches ? "dark" : "light";
+  return preference === "dark" ? "dark" : "light";
+}
+
+function updateThemeColor() {
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = resolvedAppearanceTheme() === "dark" ? "#211c27" : "#6750a4";
+}
+
+function updateAppearanceControls() {
+  document.querySelectorAll("[data-theme-option]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.themeOption === state.appearanceTheme));
+  });
+}
+
+function applyAppearanceTheme(preference, { persist = true, announce = false } = {}) {
+  const normalized = ["system", "light", "dark"].includes(preference) ? preference : "system";
+  state.appearanceTheme = normalized;
+  document.documentElement.dataset.theme = normalized;
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    } catch {
+      // O tema continua aplicado nesta sessão mesmo se o armazenamento estiver indisponível.
+    }
+  }
+  updateThemeColor();
+  updateAppearanceControls();
+  if (announce) {
+    const labels = { system: "Automático", light: "Claro", dark: "Escuro" };
+    showToast(`Aparência alterada para ${labels[normalized]}.`);
+  }
+}
+
+darkThemeMedia.addEventListener?.("change", () => {
+  if (state.appearanceTheme === "system") updateThemeColor();
+});
+applyAppearanceTheme(state.appearanceTheme, { persist: false });
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -1684,6 +1736,22 @@ function renderAppMenu() {
           ${notificationControl()}
         </section>
 
+        <section class="menu-section" aria-labelledby="appearance-menu-title">
+          <div class="menu-section__heading"><span aria-hidden="true">◐</span><div><p class="eyebrow">VISUAL</p><h2 id="appearance-menu-title">Aparência</h2></div></div>
+          <div class="theme-options" role="group" aria-label="Escolher aparência do aplicativo">
+            <button type="button" data-theme-option="system" aria-pressed="${state.appearanceTheme === "system"}">
+              <span class="theme-option__icon" aria-hidden="true">◐</span><strong>Automático</strong><small>Acompanha o aparelho</small>
+            </button>
+            <button type="button" data-theme-option="light" aria-pressed="${state.appearanceTheme === "light"}">
+              <span class="theme-option__icon" aria-hidden="true">☀</span><strong>Claro</strong><small>Fundo claro</small>
+            </button>
+            <button type="button" data-theme-option="dark" aria-pressed="${state.appearanceTheme === "dark"}">
+              <span class="theme-option__icon" aria-hidden="true">☾</span><strong>Escuro</strong><small>Fundo escuro</small>
+            </button>
+          </div>
+          <p class="menu-help">A escolha fica salva somente neste aparelho.</p>
+        </section>
+
         <section class="menu-section" aria-labelledby="application-menu-title">
           <div class="menu-section__heading"><span aria-hidden="true">▣</span><div><p class="eyebrow">APLICATIVO</p><h2 id="application-menu-title">Instalação e conta</h2></div></div>
           <div class="account-summary">
@@ -1706,6 +1774,11 @@ function renderAppMenu() {
   document.querySelector("#manage-users")?.addEventListener("click", openUserManagementDialog);
   document.querySelector("#enable-notifications")?.addEventListener("click", () => {
     syncPushIdentity({ requestPermission: true, showMessages: true });
+  });
+  document.querySelectorAll("[data-theme-option]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyAppearanceTheme(button.dataset.themeOption, { announce: true });
+    });
   });
   bindInstallButtons();
 }
@@ -2966,7 +3039,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=26.4").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26.4.1").catch(() => {});
   });
 }
 
