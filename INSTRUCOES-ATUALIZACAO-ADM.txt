@@ -1,6 +1,11 @@
-ATUALIZAÇÃO V26.3 — TERRITÓRIOS MAIS PRÓXIMOS
+ATUALIZAÇÃO V26.4 — NOVO LAYOUT ROXO E NAVEGAÇÃO INFERIOR
 
 O QUE MUDA
+- A tela inicial foi reorganizada para mostrar acessos rápidos, a programação mais próxima e os avisos.
+- A navegação principal agora fica na parte inferior com cinco opções: Início, Territórios, Programação, Mapa e Menu.
+- A aba Territórios ficou dedicada à pesquisa, aos filtros e à lista completa de quadras.
+- O Menu reúne dados da congregação, código, administração de usuários, notificações e instalação do aplicativo.
+- Textos entre dois pares de asteriscos nos avisos agora aparecem em negrito corretamente.
 - Todos os usuários da mesma congregação podem consultar os territórios disponíveis mais próximos.
 - Nos territórios programados, o botão "Próximos" abre até cinco quadras vizinhas.
 - A mesma opção aparece dentro do botão "Gerenciar".
@@ -22,7 +27,7 @@ COMO PUBLICAR NO GITHUB
 1. Extraia este ZIP no computador.
 2. No repositório gestao-de-territorios, escolha Add file > Upload files.
 3. Envie todos os arquivos e as pastas icons e push, mantendo a mesma estrutura.
-4. Use a mensagem: V26.3 - territórios mais próximos.
+4. Use a mensagem: V26.4 - novo layout roxo com navegação inferior.
 5. Confirme o commit na branch main.
 6. Aguarde o GitHub Pages concluir a publicação.
 7. Feche completamente o aplicativo e abra novamente para receber o novo cache.
@@ -33,8 +38,11 @@ NÃO É NECESSÁRIO NESTA ATUALIZAÇÃO
 - Apagar dados ou reinstalar o aplicativo.
 
 TESTE RECOMENDADO
-1. Abra um território programado e toque em Próximos.
-2. Confirme se os territórios aparecem do mais próximo para o mais distante.
-3. Abra o mapa de uma opção e confirme o link do Google Maps.
-4. Entre com um usuário comum e confirme que a opção também está disponível.
-5. Finalize um território e confira se a lista de próximos aparece automaticamente.
+1. Abra cada opção da barra inferior: Início, Territórios, Programação, Mapa e Menu.
+2. Na tela Início, abra o mapa e o gerenciamento de um território programado.
+3. Na tela Territórios, teste pesquisa, filtros, mapa, gerenciamento e cadastro.
+4. Na Programação, teste Próximos, mapa, gerenciamento e nova programação.
+5. No Mapa, confirme os marcadores e a abertura dos links originais do Google Maps.
+6. No Menu, teste copiar código, administrar usuários, notificações e instalação.
+7. Entre com um usuário comum e confirme que os controles administrativos não aparecem.
+8. Finalize um território e confira se a lista de próximos aparece automaticamente.

@@ -153,7 +153,7 @@ const state = {
   noticeLikeBusy: new Set(),
   territorySearch: "",
   territoryFilter: "all",
-  activeMainTab: "territories",
+  activeMainTab: "home",
   activeCongregationTab: "create",
   stopTerritories: null,
   stopSchedules: null,
@@ -1040,10 +1040,22 @@ function territoryStatusKey(data) {
 
 function renderMainTabs(active) {
   return `
-    <nav class="tabs main-tabs" aria-label="Áreas do aplicativo">
-      <button class="tab main-tab" type="button" data-main-tab="territories" aria-selected="${active === "territories"}">Territórios</button>
-      <button class="tab main-tab" type="button" data-main-tab="schedules" aria-selected="${active === "schedules"}">Programação</button>
-      <button class="tab main-tab" type="button" data-main-tab="map" aria-selected="${active === "map"}">Mapa geral</button>
+    <nav class="main-navigation" aria-label="Navegação principal">
+      <button class="main-nav-item" type="button" data-main-tab="home" aria-current="${active === "home" ? "page" : "false"}">
+        <span class="main-nav-icon" aria-hidden="true">⌂</span><span>Início</span>
+      </button>
+      <button class="main-nav-item" type="button" data-main-tab="territories" aria-current="${active === "territories" ? "page" : "false"}">
+        <span class="main-nav-icon" aria-hidden="true">▦</span><span>Territórios</span>
+      </button>
+      <button class="main-nav-item" type="button" data-main-tab="schedules" aria-current="${active === "schedules" ? "page" : "false"}">
+        <span class="main-nav-icon" aria-hidden="true">◫</span><span>Programação</span>
+      </button>
+      <button class="main-nav-item" type="button" data-main-tab="map" aria-current="${active === "map" ? "page" : "false"}">
+        <span class="main-nav-icon" aria-hidden="true">⌖</span><span>Mapa</span>
+      </button>
+      <button class="main-nav-item" type="button" data-main-tab="menu" aria-current="${active === "menu" ? "page" : "false"}">
+        <span class="main-nav-icon" aria-hidden="true">☰</span><span>Menu</span>
+      </button>
     </nav>`;
 }
 
@@ -1061,12 +1073,20 @@ function renderMainView() {
     territoryMapInstance.remove();
     territoryMapInstance = null;
   }
+  if (state.activeMainTab === "home") {
+    renderHome();
+    return;
+  }
   if (state.activeMainTab === "schedules") {
     renderSchedules();
     return;
   }
   if (state.activeMainTab === "map") {
     renderMapView();
+    return;
+  }
+  if (state.activeMainTab === "menu") {
+    renderAppMenu();
     return;
   }
   renderTerritories();
@@ -1346,7 +1366,6 @@ function renderMapView() {
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Mapa geral</h1></header>
-      ${renderMainTabs("map")}
       <div class="content map-content">
         <section class="coverage-card" aria-labelledby="coverage-title">
           <div class="coverage-card__heading">
@@ -1377,6 +1396,7 @@ function renderMapView() {
           }).join("") || `<div class="empty-state"><p>Nenhum território cadastrado.</p></div>`}
         </section>
       </div>
+      ${renderMainTabs("map")}
     </section>`;
 
   bindMainTabs();
@@ -1543,7 +1563,7 @@ function noticesPanel() {
       <div class="notice-list">
         ${state.notices.length ? state.notices.map((notice) => `
           <article class="notice-card">
-            <p>${escapeHtml(notice.data.texto || "")}</p>
+            <p>${formatNoticeText(notice.data.texto || "")}</p>
             ${noticeLikeControl(notice.id)}
             <div class="notice-footer">
               <span>Publicado por: ${escapeHtml(notice.data.publicadoPor || "-")} • ${escapeHtml(formatTimestamp(notice.data.publicadoEm))}</span>
@@ -1552,6 +1572,142 @@ function noticesPanel() {
           </article>`).join("") : `<p class="notice-empty">Nenhum aviso publicado.</p>`}
       </div>
     </section>`;
+}
+
+function formatNoticeText(value) {
+  return escapeHtml(value).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+}
+
+function bindNoticePanelActions() {
+  document.querySelector("#add-notice")?.addEventListener("click", () => requestNoticePermission(openNoticeDialog));
+  document.querySelector("#enable-notifications")?.addEventListener("click", () => {
+    syncPushIdentity({ requestPermission: true, showMessages: true });
+  });
+  document.querySelectorAll("[data-notice-action]").forEach((button) => {
+    button.addEventListener("click", () => handleNoticeAction(button.dataset.noticeAction, button.dataset.id));
+  });
+  document.querySelectorAll("[data-notice-like]").forEach((button) => {
+    button.addEventListener("click", () => likeNotice(button.dataset.noticeLike));
+  });
+}
+
+function bindScheduledTerritoryButtons() {
+  document.querySelectorAll("[data-open-maps]").forEach((button) => {
+    button.addEventListener("click", () => openMaps(button.dataset.openMaps));
+  });
+  document.querySelectorAll("[data-manage-territory]").forEach((button) => {
+    button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageTerritory));
+  });
+  document.querySelectorAll("[data-nearby-territory]").forEach((button) => {
+    button.addEventListener("click", () => openNearbyTerritoriesDialog(button.dataset.nearbyTerritory));
+  });
+}
+
+function switchMainView(destination) {
+  state.activeMainTab = destination;
+  renderMainView();
+}
+
+function renderHome() {
+  const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
+  const finished = state.territories.filter((territory) => territory.data.finalizado === true).length;
+  const active = Math.max(state.territories.length - finished, 0);
+
+  appElement.innerHTML = `
+    <section class="page-shell">
+      <header class="top-app-bar"><h1>Início</h1></header>
+      <div class="content home-content">
+        <section class="home-welcome" aria-label="Resumo da congregação">
+          <div>
+            <p class="eyebrow">GESTÃO DE TERRITÓRIOS</p>
+            <h2>${escapeHtml(congregationName)}</h2>
+            <p>${escapeHtml(userRoleLabel())} • ${state.user?.email ? escapeHtml(state.user.email) : "Conta conectada"}</p>
+          </div>
+          <span class="home-role-icon" aria-hidden="true">⌂</span>
+        </section>
+
+        <section class="home-shortcuts" aria-label="Acessos rápidos">
+          <button type="button" data-main-destination="territories"><span aria-hidden="true">▦</span><strong>Territórios</strong><small>${active} disponíveis</small></button>
+          <button type="button" data-main-destination="schedules"><span aria-hidden="true">◫</span><strong>Programação</strong><small>Ver datas e saídas</small></button>
+          <button type="button" data-main-destination="map"><span aria-hidden="true">⌖</span><strong>Mapa geral</strong><small>${state.territories.length} pontos cadastrados</small></button>
+          <button type="button" data-main-destination="menu"><span aria-hidden="true">☰</span><strong>Menu</strong><small>Congregação e ajustes</small></button>
+        </section>
+
+        ${nextScheduleBanner() || `
+          <section class="home-empty-schedule">
+            <div><p class="eyebrow">PROGRAMAÇÃO</p><h2>Nenhuma programação futura</h2><p>Quando uma programação for criada, ela aparecerá aqui para todos.</p></div>
+            <button class="btn btn-outlined" type="button" data-main-destination="schedules">Ver programação</button>
+          </section>`}
+
+        ${noticesPanel()}
+      </div>
+      ${renderMainTabs("home")}
+    </section>`;
+
+  bindMainTabs();
+  document.querySelectorAll("[data-main-destination]").forEach((button) => {
+    button.addEventListener("click", () => switchMainView(button.dataset.mainDestination));
+  });
+  document.querySelector("#view-schedules")?.addEventListener("click", () => switchMainView("schedules"));
+  bindNoticePanelActions();
+  bindScheduledTerritoryButtons();
+}
+
+function renderAppMenu() {
+  const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
+  const congregationCode = isAdministrator() ? state.congregationCode : "";
+
+  appElement.innerHTML = `
+    <section class="page-shell">
+      <header class="top-app-bar"><h1>Menu</h1></header>
+      <div class="content app-menu-content">
+        <section class="congregation-card" aria-label="Dados da congregação">
+          <div class="congregation-card__text">
+            <p class="eyebrow">CONGREGAÇÃO ATUAL</p>
+            <div class="congregation-title-row">
+              <p class="congregation-name">${escapeHtml(congregationName)}</p>
+              <span class="role-badge ${escapeHtml(state.userRole)}">${escapeHtml(userRoleLabel())}</span>
+            </div>
+            ${isAdministrator() ? `
+              <p class="congregation-code">CÓDIGO: <span id="display-code">${escapeHtml(congregationCode || "Indisponível")}</span></p>
+              <p class="congregation-help">Somente administradores podem visualizar e compartilhar este código.</p>` : `
+              <p class="congregation-help">Sua conta está vinculada a esta congregação.</p>`}
+          </div>
+          <div class="congregation-actions">
+            ${congregationCode ? `<button id="copy-code" class="btn btn-tonal" type="button" aria-label="Copiar código">▣ Copiar código</button>` : ""}
+            ${isPrincipalAdministrator() ? `<button id="manage-users" class="btn btn-outlined" type="button">Administrar usuários</button>` : ""}
+          </div>
+        </section>
+
+        <section class="menu-section" aria-labelledby="notifications-menu-title">
+          <div class="menu-section__heading"><span aria-hidden="true">🔔</span><div><p class="eyebrow">COMUNICAÇÃO</p><h2 id="notifications-menu-title">Notificações</h2></div></div>
+          ${notificationControl()}
+        </section>
+
+        <section class="menu-section" aria-labelledby="application-menu-title">
+          <div class="menu-section__heading"><span aria-hidden="true">▣</span><div><p class="eyebrow">APLICATIVO</p><h2 id="application-menu-title">Instalação e conta</h2></div></div>
+          <div class="account-summary">
+            <strong>${escapeHtml(state.user?.email || "Conta conectada")}</strong>
+            <span>${escapeHtml(userRoleLabel())}</span>
+          </div>
+          <div class="install-area">${installButton()}</div>
+          <p class="menu-help">A instalação mantém o aplicativo disponível na tela inicial. Seus dados continuam sincronizados com a congregação.</p>
+        </section>
+
+        <section class="menu-section menu-version" aria-label="Versão do aplicativo">
+          <span>Gestão de Territórios</span><strong>Versão 26.4</strong>
+        </section>
+      </div>
+      ${renderMainTabs("menu")}
+    </section>`;
+
+  bindMainTabs();
+  document.querySelector("#copy-code")?.addEventListener("click", copyCongregationCode);
+  document.querySelector("#manage-users")?.addEventListener("click", openUserManagementDialog);
+  document.querySelector("#enable-notifications")?.addEventListener("click", () => {
+    syncPushIdentity({ requestPermission: true, showMessages: true });
+  });
+  bindInstallButtons();
 }
 
 function noticeLikeControl(noticeId) {
@@ -1577,8 +1733,6 @@ function noticeLikeControl(noticeId) {
 }
 
 function renderTerritories() {
-  const congregationName = state.congregation?.nome?.toString().trim() || "Sua congregação";
-  const congregationCode = isAdministrator() ? state.congregationCode : "";
   const cards = state.territories.map(({ id, data }) => territoryCard(id, data)).join("");
   const filterCounts = state.territories.reduce((counts, territory) => {
     counts[territoryStatusKey(territory.data)] += 1;
@@ -1588,26 +1742,11 @@ function renderTerritories() {
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Territórios</h1></header>
-      ${renderMainTabs("territories")}
-      <div class="content">
-        <section class="congregation-card" aria-label="Dados da congregação">
-            <div class="congregation-card__text">
-              <div class="congregation-title-row">
-                <p class="congregation-name">${escapeHtml(congregationName)}</p>
-                <span class="role-badge ${escapeHtml(state.userRole)}">${escapeHtml(userRoleLabel())}</span>
-              </div>
-              ${isAdministrator() ? `
-                <p class="congregation-code">CÓDIGO: <span id="display-code">${escapeHtml(congregationCode || "Indisponível")}</span></p>
-                <p class="congregation-help">Somente administradores podem visualizar e compartilhar este código.</p>` : `
-                <p class="congregation-help">Sua conta está vinculada a esta congregação.</p>`}
-            </div>
-            <div class="congregation-actions">
-              ${congregationCode ? `<button id="copy-code" class="btn btn-tonal" type="button" aria-label="Copiar código">▣ Copiar</button>` : ""}
-              ${isPrincipalAdministrator() ? `<button id="manage-users" class="btn btn-outlined" type="button">Administrar usuários</button>` : ""}
-            </div>
-          </section>
-        ${noticesPanel()}
-        ${nextScheduleBanner()}
+      <div class="content territory-content">
+        <section class="page-introduction">
+          <div><p class="eyebrow">QUADRAS DA CONGREGAÇÃO</p><h2>Encontre e gerencie um território</h2></div>
+          <span>${state.territories.length} ${state.territories.length === 1 ? "território" : "territórios"}</span>
+        </section>
         ${state.territories.length ? `
           <section class="territory-search" aria-label="Pesquisar território">
             <label for="territory-search-input">Pesquisar território</label>
@@ -1633,24 +1772,9 @@ function renderTerritories() {
         </section>
       </div>
       ${isAdministrator() ? `<button id="add-territory" class="fab" type="button" aria-label="Adicionar território">＋</button>` : ""}
+      ${renderMainTabs("territories")}
     </section>`;
 
-  document.querySelector("#copy-code")?.addEventListener("click", copyCongregationCode);
-  document.querySelector("#manage-users")?.addEventListener("click", openUserManagementDialog);
-  document.querySelector("#view-schedules")?.addEventListener("click", () => {
-    state.activeMainTab = "schedules";
-    renderMainView();
-  });
-  document.querySelector("#add-notice")?.addEventListener("click", () => requestNoticePermission(openNoticeDialog));
-  document.querySelector("#enable-notifications")?.addEventListener("click", () => {
-    syncPushIdentity({ requestPermission: true, showMessages: true });
-  });
-  document.querySelectorAll("[data-notice-action]").forEach((button) => {
-    button.addEventListener("click", () => handleNoticeAction(button.dataset.noticeAction, button.dataset.id));
-  });
-  document.querySelectorAll("[data-notice-like]").forEach((button) => {
-    button.addEventListener("click", () => likeNotice(button.dataset.noticeLike));
-  });
   document.querySelector("#add-territory")?.addEventListener("click", () => openTerritoryDialog());
   document.querySelector("#territory-search-input")?.addEventListener("input", (event) => {
     applyTerritorySearch(event.currentTarget.value);
@@ -1665,18 +1789,10 @@ function renderTerritories() {
     });
   });
   bindMainTabs();
-  document.querySelectorAll("[data-open-maps]").forEach((button) => {
-    button.addEventListener("click", () => openMaps(button.dataset.openMaps));
-  });
   document.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleTerritoryAction(button.dataset.action, button.dataset.id));
   });
-  document.querySelectorAll("[data-manage-territory]").forEach((button) => {
-    button.addEventListener("click", () => openScheduledTerritoryManagement(button.dataset.manageTerritory));
-  });
-  document.querySelectorAll("[data-nearby-territory]").forEach((button) => {
-    button.addEventListener("click", () => openNearbyTerritoriesDialog(button.dataset.nearbyTerritory));
-  });
+  bindScheduledTerritoryButtons();
   applyTerritorySearch(state.territorySearch);
 }
 
@@ -1690,7 +1806,6 @@ function renderSchedules() {
   appElement.innerHTML = `
     <section class="page-shell">
       <header class="top-app-bar"><h1>Programação</h1></header>
-      ${renderMainTabs("schedules")}
       <div class="content schedule-content">
         <section class="schedule-section" aria-labelledby="upcoming-schedules-title">
           <div class="section-heading">
@@ -1714,6 +1829,7 @@ function renderSchedules() {
           </details>` : ""}
       </div>
       ${isAdministrator() ? `<button id="add-schedule" class="fab" type="button" aria-label="Programar territórios" title="Programar territórios">＋</button>` : ""}
+      ${renderMainTabs("schedules")}
     </section>`;
 
   bindMainTabs();
@@ -2850,7 +2966,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=26").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26.4").catch(() => {});
   });
 }
 
