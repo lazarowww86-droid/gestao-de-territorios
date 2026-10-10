@@ -1611,7 +1611,6 @@ function noticesPanel() {
         </div>
         ${administrator ? `<button id="add-notice" class="btn btn-outlined" type="button">Novo aviso</button>` : ""}
       </div>
-      ${notificationControl()}
       <div class="notice-list">
         ${state.notices.length ? state.notices.map((notice) => `
           <article class="notice-card">
@@ -1669,6 +1668,10 @@ function renderHome() {
     <section class="page-shell">
       <header class="top-app-bar"><h1>Início</h1></header>
       <div class="content home-content">
+        <section class="home-notification" aria-label="Ativação de notificações">
+          ${notificationControl()}
+        </section>
+
         <section class="home-welcome" aria-label="Resumo da congregação">
           <div>
             <p class="eyebrow">GESTÃO DE TERRITÓRIOS</p>
@@ -1763,7 +1766,7 @@ function renderAppMenu() {
         </section>
 
         <section class="menu-section menu-version" aria-label="Versão do aplicativo">
-          <span>Gestão de Territórios</span><strong>Versão 26.4</strong>
+          <span>Gestão de Territórios</span><strong>Versão 26.4.2</strong>
         </section>
       </div>
       ${renderMainTabs("menu")}
@@ -3039,7 +3042,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=26.4.1").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26.4.2").catch(() => {});
   });
 }
 

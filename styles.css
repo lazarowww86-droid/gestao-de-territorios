@@ -450,6 +450,22 @@ button { -webkit-tap-highlight-color: transparent; }
 .app-menu-content,
 .territory-content { display: grid; gap: 1rem; }
 
+.home-notification .notification-control {
+  background: linear-gradient(135deg, var(--introduction-start), var(--introduction-end));
+  border-color: var(--primary);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.home-notification .notification-control.enabled {
+  background: var(--positive-soft);
+  border-color: var(--positive-border);
+  box-shadow: none;
+}
+.home-notification .notification-control.unavailable {
+  background: var(--warning-soft);
+  border-color: var(--warning-strong-border);
+  box-shadow: none;
+}
+
 .home-welcome {
   display: flex;
   align-items: center;
