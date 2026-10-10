@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v26-4-2-notification-top";
+const CACHE_NAME = "gestao-territorios-v26-4-3-realtime-sync";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26.4.2",
-  "./app.js?v=26.4.2",
+  "./styles.css?v=26.4.3",
+  "./app.js?v=26.4.3",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

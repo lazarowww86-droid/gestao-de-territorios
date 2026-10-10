@@ -126,7 +126,12 @@ auth.languageCode = "pt-BR";
 let db;
 try {
   db = initializeFirestore(firebaseApp, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    // Alguns navegadores móveis e PWAs mantêm a conexão WebChannel em cache.
+    // O long polling evita que atualizações de outro aparelho fiquem presas
+    // até o usuário recarregar ou reabrir o aplicativo.
+    experimentalAutoDetectLongPolling: false,
+    experimentalForceLongPolling: true
   });
 } catch {
   db = getFirestore(firebaseApp);
@@ -182,6 +187,7 @@ const state = {
 
 let oneSignalReadyPromise = null;
 let territoryMapInstance = null;
+let territoryReconnectTimer = null;
 const darkThemeMedia = window.matchMedia("(prefers-color-scheme: dark)");
 
 function resolvedAppearanceTheme(preference = state.appearanceTheme) {
@@ -430,11 +436,26 @@ function setOnlineState() {
   networkBanner.hidden = navigator.onLine;
 }
 
+function reconnectTerritoriesInRealtime() {
+  if (!state.user || !state.congregationId || !navigator.onLine) return;
+  if (document.visibilityState === "hidden") return;
+  clearTimeout(territoryReconnectTimer);
+  territoryReconnectTimer = window.setTimeout(() => {
+    if (!state.user || !state.congregationId || !navigator.onLine) return;
+    subscribeTerritories();
+  }, 250);
+}
+
 window.addEventListener("online", () => {
   setOnlineState();
   showToast("Conexão restabelecida.");
+  reconnectTerritoriesInRealtime();
 });
 window.addEventListener("offline", setOnlineState);
+window.addEventListener("pageshow", reconnectTerritoriesInRealtime);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") reconnectTerritoriesInRealtime();
+});
 setOnlineState();
 
 function spinnerLabel(label) {
@@ -1766,7 +1787,7 @@ function renderAppMenu() {
         </section>
 
         <section class="menu-section menu-version" aria-label="Versão do aplicativo">
-          <span>Gestão de Territórios</span><strong>Versão 26.4.2</strong>
+          <span>Gestão de Territórios</span><strong>Versão 26.4.3</strong>
         </section>
       </div>
       ${renderMainTabs("menu")}
@@ -3042,7 +3063,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=26.4.2").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26.4.3").catch(() => {});
   });
 }
 
