@@ -1,9 +1,9 @@
-const CACHE_NAME = "gestao-territorios-v26-4-3-realtime-sync";
+const CACHE_NAME = "gestao-territorios-v26-4-5-smart-install-button";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26.4.3",
-  "./app.js?v=26.4.3",
+  "./styles.css?v=26.4.5",
+  "./app.js?v=26.4.5",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

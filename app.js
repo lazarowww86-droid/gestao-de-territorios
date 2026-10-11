@@ -467,33 +467,115 @@ function renderLoading(label = "Carregando...") {
 }
 
 function installButton() {
-  return `<button class="btn btn-tonal install-button" type="button" ${state.installPrompt ? "" : "hidden"}>Instalar aplicativo</button>`;
+  if (isRunningAsInstalledApp()) return "";
+  return `<button class="btn btn-tonal install-button" type="button">Instalar aplicativo</button>`;
 }
 
 function bindInstallButtons() {
   document.querySelectorAll(".install-button").forEach((button) => {
-    button.hidden = !state.installPrompt;
     button.addEventListener("click", installApp);
   });
 }
 
+function isRunningAsInstalledApp() {
+  return window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true;
+}
+
+function installHelpForCurrentDevice() {
+  const userAgent = window.navigator.userAgent || "";
+  const isAppleMobile = /iPad|iPhone|iPod/i.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+
+  if (isAppleMobile) {
+    return {
+      device: "iPhone ou iPad",
+      steps: [
+        "Abra este link no Safari.",
+        "Toque no botão Compartilhar, representado por um quadrado com uma seta para cima.",
+        "Escolha Adicionar à Tela de Início e depois toque em Adicionar."
+      ]
+    };
+  }
+
+  if (isAndroid) {
+    return {
+      device: "Android",
+      steps: [
+        "Se o link estiver aberto dentro do WhatsApp ou de outro aplicativo, use o menu e escolha Abrir no navegador.",
+        "No Chrome, Edge ou Brave, toque no menu de três pontos.",
+        "Escolha Instalar aplicativo ou Adicionar à tela inicial e confirme."
+      ]
+    };
+  }
+
+  return {
+    device: "computador",
+    steps: [
+      "Abra este link no Chrome, Edge ou Brave.",
+      "Procure o ícone de instalação no lado direito da barra de endereços.",
+      "Se o ícone não aparecer, abra o menu do navegador e escolha Instalar Gestão de Territórios."
+    ]
+  };
+}
+
+function showInstallInstructions() {
+  const help = installHelpForCurrentDevice();
+  modalRoot.innerHTML = `
+    <dialog class="app-dialog install-help-dialog">
+      <div class="dialog-form">
+        <h2 class="dialog-title">Como instalar o aplicativo</h2>
+        <p class="dialog-help">O navegador não abriu a instalação automática. Siga estas instruções para ${escapeHtml(help.device)}:</p>
+        <ol class="install-help-list">
+          ${help.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+        </ol>
+        <div class="dialog-actions">
+          <button class="btn btn-filled close-install-help" type="button">Entendi</button>
+        </div>
+      </div>
+    </dialog>`;
+
+  const dialog = modalRoot.querySelector("dialog");
+  const close = () => {
+    dialog.close();
+    modalRoot.innerHTML = "";
+  };
+  dialog.querySelector(".close-install-help").addEventListener("click", close);
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    close();
+  });
+  dialog.showModal();
+}
+
 async function installApp() {
-  if (!state.installPrompt) return;
+  if (isRunningAsInstalledApp()) {
+    showToast("O aplicativo já está instalado neste dispositivo.");
+    return;
+  }
+
+  if (!state.installPrompt) {
+    showInstallInstructions();
+    return;
+  }
+
   const prompt = state.installPrompt;
   state.installPrompt = null;
   await prompt.prompt();
-  await prompt.userChoice.catch(() => null);
-  document.querySelectorAll(".install-button").forEach((button) => { button.hidden = true; });
+  const choice = await prompt.userChoice.catch(() => null);
+  if (choice?.outcome === "dismissed") {
+    showToast("Instalação cancelada. Você pode tentar novamente pelo menu do navegador.");
+  }
 }
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   state.installPrompt = event;
-  document.querySelectorAll(".install-button").forEach((button) => { button.hidden = false; });
 });
 
 window.addEventListener("appinstalled", () => {
   state.installPrompt = null;
+  document.querySelectorAll(".install-button").forEach((button) => button.remove());
   showToast("Aplicativo instalado.");
 });
 
@@ -1787,7 +1869,7 @@ function renderAppMenu() {
         </section>
 
         <section class="menu-section menu-version" aria-label="Versão do aplicativo">
-          <span>Gestão de Territórios</span><strong>Versão 26.4.3</strong>
+          <span>Gestão de Territórios</span><strong>Versão 26.4.5</strong>
         </section>
       </div>
       ${renderMainTabs("menu")}
@@ -3063,7 +3145,7 @@ function registerWebMcpTools() {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=26.4.3").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=26.4.5").catch(() => {});
   });
 }
 
